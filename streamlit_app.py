@@ -62,12 +62,6 @@ GSTIN/UIN: 09AALCB9426H1ZA
 State Name: Uttar Pradesh, Code: 09
 """
 company_logo = 'ALLGEN TRADING logo.png'  # Ensure the logo file is in the same directory
-bank_details = """
-Bank Name: Example Bank
-Account Number: 1234567890
-IFSC Code: EXMP0001234
-Branch: Noida Branch
-"""
 
 # Create directories for storing uploads if they don't exist
 os.makedirs("employee_selfies", exist_ok=True)
@@ -236,49 +230,44 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         pdf.cell(0, 10, f"Amount Paid: {amount_paid} INR", ln=True)
     pdf.ln(10)
     
-    # Bank Details
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Bank Details:", ln=True)
-    pdf.set_font("Arial", '', 10)
-    pdf.multi_cell(0, 5, bank_details)
-    
-    # Add a new page for attachments
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "Attachments", ln=True)
-    pdf.ln(10)
-    
-    # Add employee selfie if available
-    if employee_selfie_path:
-        try:
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, "Employee Selfie:", ln=True)
-            # Resize image to fit PDF
-            img = Image.open(employee_selfie_path)
-            img.thumbnail((150, 150))
-            temp_path = f"temp_{os.path.basename(employee_selfie_path)}"
-            img.save(temp_path)
-            pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
-            pdf.ln(60)
-            os.remove(temp_path)
-        except Exception as e:
-            st.error(f"Error adding employee selfie: {e}")
-    
-    # Add payment receipt if available
-    if payment_receipt_path and payment_status in ["paid", "partial paid"]:
-        try:
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, "Payment Receipt:", ln=True)
-            # Resize image to fit PDF
-            img = Image.open(payment_receipt_path)
-            img.thumbnail((150, 150))
-            temp_path = f"temp_{os.path.basename(payment_receipt_path)}"
-            img.save(temp_path)
-            pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
-            pdf.ln(60)
-            os.remove(temp_path)
-        except Exception as e:
-            st.error(f"Error adding payment receipt: {e}")
+    # Add a new page for attachments if there are any
+    if employee_selfie_path or (payment_receipt_path and payment_status in ["paid", "partial paid"]):
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "Attachments", ln=True)
+        pdf.ln(10)
+        
+        # Add employee selfie if available
+        if employee_selfie_path:
+            try:
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 10, "Employee Selfie:", ln=True)
+                # Resize image to fit PDF
+                img = Image.open(employee_selfie_path)
+                img.thumbnail((150, 150))
+                temp_path = f"temp_{os.path.basename(employee_selfie_path)}"
+                img.save(temp_path)
+                pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
+                pdf.ln(60)
+                os.remove(temp_path)
+            except Exception as e:
+                st.error(f"Error adding employee selfie: {e}")
+        
+        # Add payment receipt if available
+        if payment_receipt_path and payment_status in ["paid", "partial paid"]:
+            try:
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 10, "Payment Receipt:", ln=True)
+                # Resize image to fit PDF
+                img = Image.open(payment_receipt_path)
+                img.thumbnail((150, 150))
+                temp_path = f"temp_{os.path.basename(payment_receipt_path)}"
+                img.save(temp_path)
+                pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
+                pdf.ln(60)
+                os.remove(temp_path)
+            except Exception as e:
+                st.error(f"Error adding payment receipt: {e}")
 
     # Prepare sales data for logging
     for idx, (product, quantity) in enumerate(zip(selected_products, quantities)):
