@@ -63,10 +63,9 @@ State Name: Uttar Pradesh, Code: 09
 """
 company_logo = 'ALLGEN TRADING logo.png'  # Ensure the logo file is in the same directory
 bank_details = """
-Bank Name: Example Bank
-Account Number: 1234567890
-IFSC Code: EXMP0001234
-Branch: Noida Branch
+Disclaimer: This Proforma Invoice is for estimation purposes only and is not a demand for payment. 
+Prices, taxes, and availability are subject to change. Final billing may vary. 
+Goods/services will be delivered only after confirmation and payment. No legal obligation is created by this document.
 """
 
 # Create directories for storing uploads if they don't exist
@@ -236,9 +235,9 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         pdf.cell(0, 10, f"Amount Paid: {amount_paid} INR", ln=True)
     pdf.ln(10)
     
-    # Bank Details
+    # Details
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Bank Details:", ln=True)
+    pdf.cell(0, 10, "Details:", ln=True)
     pdf.set_font("Arial", '', 10)
     pdf.multi_cell(0, 5, bank_details)
     
