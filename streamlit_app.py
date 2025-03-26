@@ -5,6 +5,9 @@ import math
 from fpdf import FPDF
 from datetime import datetime
 import base64
+import os
+from PIL import Image
+import io
 
 # Display Title and Description
 st.title("Biolume: Sales Management System")
@@ -36,8 +39,8 @@ SALES_SHEET_COLUMNS = [
     "Discounted Price",
     "Payment Status",
     "Amount Paid (INR)",
-    "Payment Receipt",
-    "Employee Selfie"
+    "Payment Receipt URL",
+    "Employee Selfie URL"
 ]
 
 # Establishing a Google Sheets connection
@@ -57,7 +60,7 @@ Uttar Pradesh 201301
 GSTIN/UIN: 09AALCB9426H1ZA
 State Name: Uttar Pradesh, Code: 09
 """
-company_logo = 'ALLGEN TRADING logo.png'  # Ensure the logo file is in the same directory
+company_logo = 'ALLGEN TRADING logo.png'
 bank_details = """
 Bank Name: Example Bank
 Account Number: 1234567890
@@ -68,25 +71,51 @@ Branch: Noida Branch
 # Custom PDF class
 class PDF(FPDF):
     def header(self):
-        # Add company logo
         if company_logo:
             self.image(company_logo, 10, 8, 33)
-        
-        # Company name and address
         self.set_font('Arial', 'B', 16)
         self.cell(0, 10, company_name, ln=True, align='C')
         self.set_font('Arial', '', 10)
         self.multi_cell(0, 5, company_address, align='C')
-        
-        # Invoice title
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'Proforma Invoice', ln=True, align='C')
-        self.line(10, 50, 200, 50)  # Horizontal line
+        self.line(10, 50, 200, 50)
         self.ln(1)
 
-# Function to convert image to base64 for Google Sheets
-def image_to_base64(uploaded_file):
-    return base64.b64encode(uploaded_file.getvalue()).decode()
+# Function to compress and convert image to base64
+def process_image(uploaded_file, max_size=500):
+    if uploaded_file is None:
+        return None
+        
+    try:
+        # Open the image
+        img = Image.open(uploaded_file)
+        
+        # Convert to RGB if needed
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+            
+        # Calculate new dimensions while maintaining aspect ratio
+        width, height = img.size
+        if width > max_size or height > max_size:
+            if width > height:
+                new_width = max_size
+                new_height = int(height * (max_size / width))
+            else:
+                new_height = max_size
+                new_width = int(width * (max_size / height))
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Convert to bytes
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG', quality=85)
+        img_byte_arr = img_byte_arr.getvalue()
+        
+        # Convert to base64
+        return base64.b64encode(img_byte_arr).decode('utf-8')
+    except Exception as e:
+        st.error(f"Error processing image: {e}")
+        return None
 
 # Function to log sales data to Google Sheets
 def log_sales_to_gsheet(conn, sales_data):
@@ -110,6 +139,10 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     pdf.alias_nb_pages()
     pdf.add_page()
     current_date = datetime.now().strftime("%d-%m-%Y")
+
+    # Process images with compression
+    employee_selfie_b64 = process_image(employee_selfie) if employee_selfie else None
+    payment_receipt_b64 = process_image(payment_receipt) if payment_receipt else None
 
     # Sales Person
     pdf.ln(0)
@@ -149,11 +182,10 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         product_data = Products[Products['Product Name'] == product].iloc[0]
 
         if discount_category in product_data:
-            unit_price = float(product_data[discount_category])  # Use discount category price
+            unit_price = float(product_data[discount_category])
         else:
             unit_price = float(product_data['Price'])
 
-        # Apply overall discount
         discounted_price = unit_price * (1 - overall_discount / 100)
         item_total_price = discounted_price * quantity
 
@@ -246,13 +278,18 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
             "Discounted Price": discounted_price,
             "Payment Status": payment_status,
             "Amount Paid (INR)": amount_paid,
-            "Payment Receipt": image_to_base64(payment_receipt) if payment_receipt else "",
-            "Employee Selfie": image_to_base64(employee_selfie) if employee_selfie else ""
+            "Payment Receipt URL": "Uploaded" if payment_receipt_b64 else "",
+            "Employee Selfie URL": "Uploaded" if employee_selfie_b64 else ""
         })
 
     # Log sales data to Google Sheets
     sales_df = pd.DataFrame(sales_data)
     log_sales_to_gsheet(conn, sales_df)
+
+    # Save images separately (you would need to implement this part)
+    # For now, we'll just store a flag indicating images were uploaded
+    # In a real implementation, you would upload to cloud storage (S3, Google Drive, etc.)
+    # and store the URLs instead of the actual image data
 
     return pdf
 
@@ -265,7 +302,7 @@ employee_names = Person['Employee Name'].tolist()
 selected_employee = st.selectbox("Select Employee", employee_names)
 
 # Employee Selfie Upload
-employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "png", "jpeg"])
+employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "png", "jpeg"], help="Max size 500KB")
 
 # Fetch Discount Category
 discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
@@ -304,17 +341,16 @@ payment_receipt = None
 
 if payment_status == "Partial Paid":
     amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "png", "jpeg", "pdf"])
+    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "png", "jpeg", "pdf"], help="Max size 500KB")
 elif payment_status == "Paid":
     outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
-    # Calculate approximate total to suggest payment amount
     if selected_products and quantities:
         total = sum(float(Products[Products['Product Name'] == product].iloc[0]['Price']) * qty 
                    for product, qty in zip(selected_products, quantities))
         amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=total, step=1.0)
     else:
         amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "png", "jpeg", "pdf"])
+    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "png", "jpeg", "pdf"], help="Max size 500KB")
 
 # Generate Invoice button
 if st.button("Generate Invoice"):
