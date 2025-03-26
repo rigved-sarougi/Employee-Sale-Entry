@@ -14,4 +14,3 @@ Pillow
 oauth2client
 google-auth
 google-auth-oauthlib
-fpdf2
