@@ -9,7 +9,7 @@ import uuid
 from PIL import Image
 
 # Display Title and Description
-st.title("Biolume: Sales Management System")
+st.title("Biolume: Sales & Visit Management System")
 
 # Constants
 SALES_SHEET_COLUMNS = [
@@ -44,6 +44,26 @@ SALES_SHEET_COLUMNS = [
     "Invoice PDF Path"
 ]
 
+VISIT_SHEET_COLUMNS = [
+    "Visit ID",
+    "Employee Name",
+    "Employee Code",
+    "Designation",
+    "Outlet Name",
+    "Outlet Contact",
+    "Outlet Address",
+    "Outlet State",
+    "Outlet City",
+    "Visit Date",
+    "Entry Time",
+    "Exit Time",
+    "Visit Duration (minutes)",
+    "Visit Purpose",
+    "Visit Notes",
+    "Visit Selfie Path",
+    "Visit Status"
+]
+
 # Establishing a Google Sheets connection
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -72,6 +92,7 @@ Goods/services will be delivered only after confirmation and payment. No legal o
 os.makedirs("employee_selfies", exist_ok=True)
 os.makedirs("payment_receipts", exist_ok=True)
 os.makedirs("invoices", exist_ok=True)
+os.makedirs("visit_selfies", exist_ok=True)
 
 # Custom PDF class
 class PDF(FPDF):
@@ -95,6 +116,10 @@ class PDF(FPDF):
 # Function to generate unique invoice number
 def generate_invoice_number():
     return f"INV-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+
+# Function to generate unique visit ID
+def generate_visit_id():
+    return f"VISIT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
 # Function to save uploaded file
 def save_uploaded_file(uploaded_file, folder):
@@ -121,6 +146,22 @@ def log_sales_to_gsheet(conn, sales_data):
         st.success("Sales data successfully logged to Google Sheets!")
     except Exception as e:
         st.error(f"Error logging sales data: {e}")
+
+# Function to log visit data to Google Sheets
+def log_visit_to_gsheet(conn, visit_data):
+    try:
+        # Fetch existing data
+        existing_visit_data = conn.read(worksheet="Visits", usecols=list(range(len(VISIT_SHEET_COLUMNS))), ttl=5)
+        existing_visit_data = existing_visit_data.dropna(how="all")
+        
+        # Combine existing data with new data
+        updated_visit_data = pd.concat([existing_visit_data, visit_data], ignore_index=True)
+        
+        # Update the Google Sheet
+        conn.update(worksheet="Visits", data=updated_visit_data)
+        st.success("Visit data successfully logged to Google Sheets!")
+    except Exception as e:
+        st.error(f"Error logging visit data: {e}")
 
 # Generate Invoice
 def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, 
@@ -333,94 +374,197 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     return pdf, pdf_path
 
-# Streamlit UI
-st.title("")
+# Function to record visit
+def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_selfie_path, entry_time, exit_time):
+    visit_id = generate_visit_id()
+    visit_date = datetime.now().strftime("%d-%m-%Y")
+    
+    # Calculate visit duration in minutes
+    duration = (exit_time - entry_time).total_seconds() / 60
+    
+    # Get outlet details
+    outlet_details = Outlet[Outlet['Shop Name'] == outlet_name].iloc[0]
+    
+    # Prepare visit data
+    visit_data = {
+        "Visit ID": visit_id,
+        "Employee Name": employee_name,
+        "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
+        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
+        "Outlet Name": outlet_name,
+        "Outlet Contact": outlet_details['Contact'],
+        "Outlet Address": outlet_details['Address'],
+        "Outlet State": outlet_details['State'],
+        "Outlet City": outlet_details['City'],
+        "Visit Date": visit_date,
+        "Entry Time": entry_time.strftime("%H:%M:%S"),
+        "Exit Time": exit_time.strftime("%H:%M:%S"),
+        "Visit Duration (minutes)": round(duration, 2),
+        "Visit Purpose": visit_purpose,
+        "Visit Notes": visit_notes,
+        "Visit Selfie Path": visit_selfie_path,
+        "Visit Status": "completed"
+    }
+    
+    # Log visit data to Google Sheets
+    visit_df = pd.DataFrame([visit_data])
+    log_visit_to_gsheet(conn, visit_df)
+    
+    return visit_id
 
-# Employee Selection
-st.subheader("Employee Details")
-employee_names = Person['Employee Name'].tolist()
-selected_employee = st.selectbox("Select Employee", employee_names)
+# Main App
+def main():
+    st.sidebar.title("Navigation")
+    app_mode = st.sidebar.radio("Select Mode", ["Sales", "Visit"])
 
-# Employee Selfie Upload
-st.subheader("Employee Verification")
-employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
-
-# Fetch Discount Category
-discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
-
-# Product Selection
-st.subheader("Product Details")
-product_names = Products['Product Name'].tolist()
-selected_products = st.multiselect("Select Products", product_names)
-
-# Input Quantities for Each Selected Product
-quantities = []
-if selected_products:
-    for product in selected_products:
-        qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
-        quantities.append(qty)
-
-# Discount Options
-st.subheader("Discount Options")
-col1, col2 = st.columns(2)
-with col1:
-    overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
-with col2:
-    amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
-
-# Payment Details
-st.subheader("Payment Details")
-payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
-
-amount_paid = 0.0
-payment_receipt = None
-
-if payment_status == "partial paid":
-    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-elif payment_status == "paid":
-    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-
-# Outlet Selection
-st.subheader("Outlet Details")
-outlet_names = Outlet['Shop Name'].tolist()
-selected_outlet = st.selectbox("Select Outlet", outlet_names)
-
-# Fetch Outlet Details
-outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
-
-# Generate Invoice button
-if st.button("Generate Invoice"):
-    if selected_employee and selected_products and selected_outlet:
-        # Generate invoice number
-        invoice_number = generate_invoice_number()
-        
-        # Save uploaded files
-        employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
-        payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
-        
-        customer_name = selected_outlet
-        gst_number = outlet_details['GST']
-        contact_number = outlet_details['Contact']
-        address = outlet_details['Address']
-
-        pdf, pdf_path = generate_invoice(
-            customer_name, gst_number, contact_number, address, 
-            selected_products, quantities, discount_category, 
-            selected_employee, overall_discount, amount_discount,
-            payment_status, amount_paid, employee_selfie_path, 
-            payment_receipt_path, invoice_number
-        )
-        
-        with open(pdf_path, "rb") as f:
-            st.download_button(
-                "Download Invoice", 
-                f, 
-                file_name=f"{invoice_number}.pdf",
-                mime="application/pdf"
-            )
-        
-        st.success(f"Invoice {invoice_number} generated successfully!")
+    if app_mode == "Sales":
+        sales_page()
     else:
-        st.error("Please fill all required fields and select products.")
+        visit_page()
+
+# Sales Page
+def sales_page():
+    st.title("Sales Management")
+    
+    # Employee Selection
+    st.subheader("Employee Details")
+    employee_names = Person['Employee Name'].tolist()
+    selected_employee = st.selectbox("Select Employee", employee_names)
+
+    # Employee Selfie Upload
+    st.subheader("Employee Verification")
+    employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
+
+    # Fetch Discount Category
+    discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
+
+    # Product Selection
+    st.subheader("Product Details")
+    product_names = Products['Product Name'].tolist()
+    selected_products = st.multiselect("Select Products", product_names)
+
+    # Input Quantities for Each Selected Product
+    quantities = []
+    if selected_products:
+        for product in selected_products:
+            qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
+            quantities.append(qty)
+
+    # Discount Options
+    st.subheader("Discount Options")
+    col1, col2 = st.columns(2)
+    with col1:
+        overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+    with col2:
+        amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+
+    # Payment Details
+    st.subheader("Payment Details")
+    payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
+
+    amount_paid = 0.0
+    payment_receipt = None
+
+    if payment_status == "partial paid":
+        amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+        payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+    elif payment_status == "paid":
+        amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+        payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+
+    # Outlet Selection
+    st.subheader("Outlet Details")
+    outlet_names = Outlet['Shop Name'].tolist()
+    selected_outlet = st.selectbox("Select Outlet", outlet_names)
+
+    # Fetch Outlet Details
+    outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+
+    # Generate Invoice button
+    if st.button("Generate Invoice"):
+        if selected_employee and selected_products and selected_outlet:
+            # Generate invoice number
+            invoice_number = generate_invoice_number()
+            
+            # Save uploaded files
+            employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
+            payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
+            
+            customer_name = selected_outlet
+            gst_number = outlet_details['GST']
+            contact_number = outlet_details['Contact']
+            address = outlet_details['Address']
+
+            pdf, pdf_path = generate_invoice(
+                customer_name, gst_number, contact_number, address, 
+                selected_products, quantities, discount_category, 
+                selected_employee, overall_discount, amount_discount,
+                payment_status, amount_paid, employee_selfie_path, 
+                payment_receipt_path, invoice_number
+            )
+            
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    "Download Invoice", 
+                    f, 
+                    file_name=f"{invoice_number}.pdf",
+                    mime="application/pdf"
+                )
+            
+            st.success(f"Invoice {invoice_number} generated successfully!")
+        else:
+            st.error("Please fill all required fields and select products.")
+
+# Visit Page
+def visit_page():
+    st.title("Visit Management")
+    
+    # Employee Selection
+    st.subheader("Employee Details")
+    employee_names = Person['Employee Name'].tolist()
+    selected_employee = st.selectbox("Select Employee", employee_names)
+
+    # Outlet Selection
+    st.subheader("Outlet Details")
+    outlet_names = Outlet['Shop Name'].tolist()
+    selected_outlet = st.selectbox("Select Outlet", outlet_names)
+
+    # Visit Details
+    st.subheader("Visit Details")
+    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
+    visit_notes = st.text_area("Visit Notes")
+    
+    # Visit Selfie Upload
+    st.subheader("Visit Verification")
+    visit_selfie = st.file_uploader("Upload Visit Selfie", type=["jpg", "jpeg", "png"])
+
+    # Time Tracking
+    st.subheader("Time Tracking")
+    col1, col2 = st.columns(2)
+    with col1:
+        entry_time = st.time_input("Entry Time", value=datetime.now().time())
+    with col2:
+        exit_time = st.time_input("Exit Time", value=datetime.now().time())
+
+    # Record Visit button
+    if st.button("Record Visit"):
+        if selected_employee and selected_outlet:
+            # Combine date and time
+            today = datetime.now().date()
+            entry_datetime = datetime.combine(today, entry_time)
+            exit_datetime = datetime.combine(today, exit_time)
+            
+            # Save uploaded file
+            visit_selfie_path = save_uploaded_file(visit_selfie, "visit_selfies") if visit_selfie else None
+            
+            visit_id = record_visit(
+                selected_employee, selected_outlet, visit_purpose, 
+                visit_notes, visit_selfie_path, entry_datetime, exit_datetime
+            )
+            
+            st.success(f"Visit {visit_id} recorded successfully!")
+        else:
+            st.error("Please fill all required fields.")
+
+if __name__ == "__main__":
+    main()
