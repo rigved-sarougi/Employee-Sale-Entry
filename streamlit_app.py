@@ -1,9 +1,41 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import math
 from fpdf import FPDF
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+
+# Display Title and Description
+st.title("Biolume: Sales Management System")
+
+# Constants
+SALES_SHEET_COLUMNS = [
+    "Invoice Date",
+    "Employee Name",
+    "Employee Code",
+    "Designation",
+    "Discount Category",
+    "Outlet Name",
+    "Outlet Contact",
+    "Outlet Address",
+    "Outlet State",
+    "Outlet City",
+    "Product ID",
+    "Product Name",
+    "Product Category",
+    "Quantity",
+    "Unit Price",
+    "Total Price",
+    "GST Rate",
+    "CGST Amount",
+    "SGST Amount",
+    "Grand Total",
+    "Overall Discount (%)",
+    "Discounted Price"
+]
+
+# Establishing a Google Sheets connection
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Load data
 Products = pd.read_csv('Invoice - Products.csv')
@@ -46,8 +78,24 @@ class PDF(FPDF):
         self.line(10, 50, 200, 50)  # Horizontal line
         self.ln(1)
 
+# Function to log sales data to Google Sheets
+def log_sales_to_gsheet(conn, sales_data):
+    try:
+        # Fetch existing data
+        existing_sales_data = conn.read(worksheet="Sales", usecols=list(range(len(SALES_SHEET_COLUMNS))), ttl=5)
+        existing_sales_data = existing_sales_data.dropna(how="all")
+        
+        # Combine existing data with new data
+        updated_sales_data = pd.concat([existing_sales_data, sales_data], ignore_index=True)
+        
+        # Update the Google Sheet
+        conn.update(worksheet="Sales", data=updated_sales_data)
+        st.success("Sales data successfully logged to Google Sheets!")
+    except Exception as e:
+        st.error(f"Error logging sales data: {e}")
+
 # Generate Invoice
-def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, discount_category, employee_name):
+def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, discount_category, employee_name, overall_discount):
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -86,6 +134,7 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     # Table rows
     pdf.set_font("Arial", '', 10)
     total_price = 0
+    sales_data = []
     for idx, (product, quantity) in enumerate(zip(selected_products, quantities)):
         product_data = Products[Products['Product Name'] == product].iloc[0]
 
@@ -94,17 +143,45 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         else:
             unit_price = float(product_data['Price'])
 
-        item_total_price = unit_price * quantity
+        # Apply overall discount
+        discounted_price = unit_price * (1 - overall_discount / 100)
+        item_total_price = discounted_price * quantity
 
         pdf.cell(10, 8, str(idx + 1), border=1)
         pdf.cell(70, 8, product, border=1)
         pdf.cell(20, 8, "3304", border=1, align='C')
         pdf.cell(20, 8, "18%", border=1, align='C')
         pdf.cell(20, 8, str(quantity), border=1, align='C')
-        pdf.cell(25, 8, f"{unit_price:.2f}", border=1, align='R')
+        pdf.cell(25, 8, f"{discounted_price:.2f}", border=1, align='R')
         pdf.cell(25, 8, f"{item_total_price:.2f}", border=1, align='R')
         total_price += item_total_price
         pdf.ln()
+
+        # Prepare sales data for logging
+        sales_data.append({
+            "Invoice Date": current_date,
+            "Employee Name": employee_name,
+            "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
+            "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
+            "Discount Category": discount_category,
+            "Outlet Name": customer_name,
+            "Outlet Contact": contact_number,
+            "Outlet Address": address,
+            "Outlet State": Outlet[Outlet['Shop Name'] == customer_name]['State'].values[0],
+            "Outlet City": Outlet[Outlet['Shop Name'] == customer_name]['City'].values[0],
+            "Product ID": product_data['Product ID'],
+            "Product Name": product,
+            "Product Category": product_data['Product Category'],
+            "Quantity": quantity,
+            "Unit Price": unit_price,
+            "Total Price": item_total_price,
+            "GST Rate": "18%",
+            "CGST Amount": item_total_price * 0.09,
+            "SGST Amount": item_total_price * 0.09,
+            "Grand Total": item_total_price * 1.18,
+            "Overall Discount (%)": overall_discount,
+            "Discounted Price": discounted_price
+        })
 
     # Tax and Grand Total
     pdf.ln(10)
@@ -126,10 +203,14 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     pdf.cell(30, 10, f"{grand_total} INR", border=1, align='R', fill=True)
     pdf.ln(20)
 
-    return pdf, total_price, tax_amount, grand_total
+    # Log sales data to Google Sheets
+    sales_df = pd.DataFrame(sales_data)
+    log_sales_to_gsheet(conn, sales_df)
+
+    return pdf
 
 # Streamlit UI
-st.title("Biolume + ALLGEN TRADING: Billing System")
+st.title("")
 
 # Employee Selection
 st.subheader("Employee Details")
@@ -151,6 +232,10 @@ if selected_products:
         qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
         quantities.append(qty)
 
+# Overall Discount
+st.subheader("Overall Discount")
+overall_discount = st.number_input("Enter Overall Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+
 # Outlet Selection
 st.subheader("Outlet Details")
 outlet_names = Outlet['Shop Name'].tolist()
@@ -167,55 +252,10 @@ if st.button("Generate Invoice"):
         contact_number = outlet_details['Contact']
         address = outlet_details['Address']
 
-        # Generate PDF and calculate totals
-        pdf, subtotal, tax_amount, grand_total = generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, discount_category, selected_employee)
+        pdf = generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, discount_category, selected_employee, overall_discount)
         pdf_file = f"invoice_{customer_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
         pdf.output(pdf_file)
-
-        # Download PDF
         with open(pdf_file, "rb") as f:
             st.download_button("Download Invoice", f, file_name=pdf_file)
-
-        # Submit Invoice Details button
-        if st.button("Submit Invoice Details"):
-            try:
-                # Establish Google Sheets connection
-                conn = st.connection("gsheets", type=GSheetsConnection)
-                
-                # Fetch existing invoice data
-                existing_data = conn.read(worksheet="Invoices", usecols=list(range(16)), ttl=5)
-                existing_data = existing_data.dropna(how="all")
-
-                # Create new invoice data
-                invoice_data = pd.DataFrame(
-                    [
-                        {
-                            "InvoiceID": pdf_file,
-                            "InvoiceDate": datetime.now().strftime("%Y-%m-%d"),
-                            "EmployeeName": selected_employee,
-                            "CustomerName": customer_name,
-                            "GSTNumber": gst_number,
-                            "ContactNumber": contact_number,
-                            "Address": address,
-                            "Products": ", ".join(selected_products),
-                            "Quantities": ", ".join(map(str, quantities)),
-                            "DiscountCategory": discount_category,
-                            "Subtotal": subtotal,
-                            "CGST": tax_amount / 2,
-                            "SGST": tax_amount / 2,
-                            "GrandTotal": grand_total,
-                            "PDFFileName": pdf_file,
-                        }
-                    ]
-                )
-                
-                # Combine existing and new data
-                updated_df = pd.concat([existing_data, invoice_data], ignore_index=True)
-                
-                # Update Google Sheets
-                conn.update(worksheet="Invoices", data=updated_df)
-                st.success("Invoice details successfully submitted to Google Sheets!")
-            except Exception as e:
-                st.error(f"Error saving to Google Sheets: {e}")
     else:
         st.error("Please fill all fields and select products.")
