@@ -4,13 +4,16 @@ import pandas as pd
 import math
 from fpdf import FPDF
 from datetime import datetime
-import base64
+import os
+import uuid
+from PIL import Image
 
 # Display Title and Description
 st.title("Biolume: Sales Management System")
 
 # Constants
 SALES_SHEET_COLUMNS = [
+    "Invoice Number",
     "Invoice Date",
     "Employee Name",
     "Employee Code",
@@ -32,12 +35,13 @@ SALES_SHEET_COLUMNS = [
     "SGST Amount",
     "Grand Total",
     "Overall Discount (%)",
-    "Amount-wise Discount (INR)",
+    "Amount Discount (INR)",
     "Discounted Price",
     "Payment Status",
-    "Amount Paid (INR)",
-    "Employee Selfie",
-    "Payment Receipt"
+    "Amount Paid",
+    "Payment Receipt Path",
+    "Employee Selfie Path",
+    "Invoice PDF Path"
 ]
 
 # Establishing a Google Sheets connection
@@ -65,6 +69,11 @@ IFSC Code: EXMP0001234
 Branch: Noida Branch
 """
 
+# Create directories for storing uploads if they don't exist
+os.makedirs("employee_selfies", exist_ok=True)
+os.makedirs("payment_receipts", exist_ok=True)
+os.makedirs("invoices", exist_ok=True)
+
 # Custom PDF class
 class PDF(FPDF):
     def header(self):
@@ -84,9 +93,19 @@ class PDF(FPDF):
         self.line(10, 50, 200, 50)  # Horizontal line
         self.ln(1)
 
-# Function to encode image to base64
-def image_to_base64(image_file):
-    return base64.b64encode(image_file.read()).decode('utf-8')
+# Function to generate unique invoice number
+def generate_invoice_number():
+    return f"INV-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+
+# Function to save uploaded file
+def save_uploaded_file(uploaded_file, folder):
+    if uploaded_file is not None:
+        file_ext = os.path.splitext(uploaded_file.name)[1]
+        file_path = os.path.join(folder, f"{str(uuid.uuid4())}{file_ext}")
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        return file_path
+    return None
 
 # Function to log sales data to Google Sheets
 def log_sales_to_gsheet(conn, sales_data):
@@ -107,7 +126,7 @@ def log_sales_to_gsheet(conn, sales_data):
 # Generate Invoice
 def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
-                    payment_status, amount_paid, employee_selfie, payment_receipt):
+                    payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number):
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -130,6 +149,11 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     pdf.cell(100, 6, "Address: ", ln=True)
     pdf.multi_cell(0, 6, address)
     pdf.ln(1)
+    
+    # Invoice number
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 10, f"Invoice Number: {invoice_number}", ln=True)
+    pdf.ln(5)
     
     # Table header
     pdf.set_fill_color(200, 220, 255)
@@ -169,16 +193,9 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         total_price += item_total_price
         pdf.ln()
 
-    # Apply amount-wise discount if provided
+    # Apply amount discount if any
     if amount_discount > 0:
         total_price -= amount_discount
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(160, 10, "Subtotal Before Discount", border=0, align='R')
-        pdf.cell(30, 10, f"{total_price + amount_discount:.2f}", border=1, align='R')
-        pdf.ln()
-        pdf.cell(160, 10, "Amount Discount", border=0, align='R')
-        pdf.cell(30, 10, f"-{amount_discount:.2f}", border=1, align='R')
-        pdf.ln()
 
     # Tax and Grand Total
     pdf.ln(10)
@@ -188,39 +205,95 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(160, 10, "Subtotal", border=0, align='R')
+    pdf.cell(30, 10, f"{total_price + amount_discount:.2f}", border=1, align='R')
+    pdf.ln()
+    
+    if amount_discount > 0:
+        pdf.cell(160, 10, "Amount Discount", border=0, align='R')
+        pdf.cell(30, 10, f"-{amount_discount:.2f}", border=1, align='R')
+        pdf.ln()
+    
+    pdf.cell(160, 10, "Taxable Amount", border=0, align='R')
     pdf.cell(30, 10, f"{total_price:.2f}", border=1, align='R')
     pdf.ln()
+    
     pdf.cell(160, 10, "CGST (9%)", border=0, align='R')
     pdf.cell(30, 10, f"{tax_amount / 2:.2f}", border=1, align='R')
     pdf.ln()
+    
     pdf.cell(160, 10, "SGST (9%)", border=0, align='R')
     pdf.cell(30, 10, f"{tax_amount / 2:.2f}", border=1, align='R')
     pdf.ln()
+    
     pdf.cell(160, 10, "Grand Total", border=0, align='R')
     pdf.cell(30, 10, f"{grand_total} INR", border=1, align='R', fill=True)
+    pdf.ln(10)
     
     # Payment Status
-    pdf.ln(10)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, f"Payment Status: {payment_status}", ln=True)
-    if payment_status in ["Partial Paid", "Paid"]:
+    pdf.cell(0, 10, f"Payment Status: {payment_status.upper()}", ln=True)
+    if payment_status in ["paid", "partial paid"]:
         pdf.cell(0, 10, f"Amount Paid: {amount_paid} INR", ln=True)
+    pdf.ln(10)
     
-    pdf.ln(20)
+    # Bank Details
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Bank Details:", ln=True)
+    pdf.set_font("Arial", '', 10)
+    pdf.multi_cell(0, 5, bank_details)
+    
+    # Add a new page for attachments
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, "Attachments", ln=True)
+    pdf.ln(10)
+    
+    # Add employee selfie if available
+    if employee_selfie_path:
+        try:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 10, "Employee Selfie:", ln=True)
+            # Resize image to fit PDF
+            img = Image.open(employee_selfie_path)
+            img.thumbnail((150, 150))
+            temp_path = f"temp_{os.path.basename(employee_selfie_path)}"
+            img.save(temp_path)
+            pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
+            pdf.ln(60)
+            os.remove(temp_path)
+        except Exception as e:
+            st.error(f"Error adding employee selfie: {e}")
+    
+    # Add payment receipt if available
+    if payment_receipt_path and payment_status in ["paid", "partial paid"]:
+        try:
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 10, "Payment Receipt:", ln=True)
+            # Resize image to fit PDF
+            img = Image.open(payment_receipt_path)
+            img.thumbnail((150, 150))
+            temp_path = f"temp_{os.path.basename(payment_receipt_path)}"
+            img.save(temp_path)
+            pdf.image(temp_path, x=10, y=pdf.get_y(), w=50)
+            pdf.ln(60)
+            os.remove(temp_path)
+        except Exception as e:
+            st.error(f"Error adding payment receipt: {e}")
 
     # Prepare sales data for logging
-    for product, quantity in zip(selected_products, quantities):
+    for idx, (product, quantity) in enumerate(zip(selected_products, quantities)):
         product_data = Products[Products['Product Name'] == product].iloc[0]
         
         if discount_category in product_data:
             unit_price = float(product_data[discount_category])
         else:
             unit_price = float(product_data['Price'])
-        
+            
         discounted_price = unit_price * (1 - overall_discount / 100)
         item_total_price = discounted_price * quantity
         
         sales_data.append({
+            "Invoice Number": invoice_number,
             "Invoice Date": current_date,
             "Employee Name": employee_name,
             "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
@@ -242,19 +315,24 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
             "SGST Amount": item_total_price * 0.09,
             "Grand Total": item_total_price * 1.18,
             "Overall Discount (%)": overall_discount,
-            "Amount-wise Discount (INR)": amount_discount / len(selected_products) if amount_discount > 0 else 0,
+            "Amount Discount (INR)": amount_discount,
             "Discounted Price": discounted_price,
             "Payment Status": payment_status,
-            "Amount Paid (INR)": amount_paid / len(selected_products) if amount_paid > 0 else 0,
-            "Employee Selfie": employee_selfie,
-            "Payment Receipt": payment_receipt if payment_status in ["Partial Paid", "Paid"] else ""
+            "Amount Paid": amount_paid if payment_status in ["paid", "partial paid"] else 0,
+            "Payment Receipt Path": payment_receipt_path if payment_status in ["paid", "partial paid"] else "",
+            "Employee Selfie Path": employee_selfie_path,
+            "Invoice PDF Path": f"invoices/{invoice_number}.pdf"
         })
 
+    # Save the PDF
+    pdf_path = f"invoices/{invoice_number}.pdf"
+    pdf.output(pdf_path)
+    
     # Log sales data to Google Sheets
     sales_df = pd.DataFrame(sales_data)
     log_sales_to_gsheet(conn, sales_df)
 
-    return pdf
+    return pdf, pdf_path
 
 # Streamlit UI
 st.title("")
@@ -265,11 +343,8 @@ employee_names = Person['Employee Name'].tolist()
 selected_employee = st.selectbox("Select Employee", employee_names)
 
 # Employee Selfie Upload
+st.subheader("Employee Verification")
 employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
-employee_selfie_base64 = ""
-if employee_selfie:
-    employee_selfie_base64 = image_to_base64(employee_selfie)
-    st.image(employee_selfie, caption="Employee Selfie", width=150)
 
 # Fetch Discount Category
 discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
@@ -290,56 +365,63 @@ if selected_products:
 st.subheader("Discount Options")
 col1, col2 = st.columns(2)
 with col1:
-    overall_discount = st.number_input("Overall Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+    overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
 with col2:
-    amount_discount = st.number_input("Amount-wise Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+    amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+
+# Payment Details
+st.subheader("Payment Details")
+payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
+
+amount_paid = 0.0
+payment_receipt = None
+
+if payment_status == "partial paid":
+    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+elif payment_status == "paid":
+    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
 # Outlet Selection
 st.subheader("Outlet Details")
 outlet_names = Outlet['Shop Name'].tolist()
 selected_outlet = st.selectbox("Select Outlet", outlet_names)
 
-# Payment Details
-st.subheader("Payment Details")
-payment_status = st.selectbox("Payment Status", ["Pending", "Partial Paid", "Paid"])
-
-amount_paid = 0.0
-payment_receipt_base64 = ""
-if payment_status in ["Partial Paid", "Paid"]:
-    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-    if payment_receipt:
-        payment_receipt_base64 = image_to_base64(payment_receipt)
-        if payment_receipt.type != "application/pdf":
-            st.image(payment_receipt, caption="Payment Receipt", width=150)
+# Fetch Outlet Details
+outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
 
 # Generate Invoice button
 if st.button("Generate Invoice"):
     if selected_employee and selected_products and selected_outlet:
-        if payment_status in ["Partial Paid", "Paid"] and amount_paid <= 0:
-            st.error("Please enter amount paid for partial or full payment")
-        elif payment_status in ["Partial Paid", "Paid"] and not payment_receipt_base64:
-            st.error("Please upload payment receipt for partial or full payment")
-        elif not employee_selfie_base64:
-            st.error("Please upload employee selfie")
-        else:
-            customer_name = selected_outlet
-            gst_number = Outlet[Outlet['Shop Name'] == selected_outlet]['GST'].values[0]
-            contact_number = Outlet[Outlet['Shop Name'] == selected_outlet]['Contact'].values[0]
-            address = Outlet[Outlet['Shop Name'] == selected_outlet]['Address'].values[0]
+        # Generate invoice number
+        invoice_number = generate_invoice_number()
+        
+        # Save uploaded files
+        employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
+        payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
+        
+        customer_name = selected_outlet
+        gst_number = outlet_details['GST']
+        contact_number = outlet_details['Contact']
+        address = outlet_details['Address']
 
-            pdf = generate_invoice(
-                customer_name, gst_number, contact_number, address, 
-                selected_products, quantities, discount_category, 
-                selected_employee, overall_discount, amount_discount,
-                payment_status, amount_paid, employee_selfie_base64, 
-                payment_receipt_base64
+        pdf, pdf_path = generate_invoice(
+            customer_name, gst_number, contact_number, address, 
+            selected_products, quantities, discount_category, 
+            selected_employee, overall_discount, amount_discount,
+            payment_status, amount_paid, employee_selfie_path, 
+            payment_receipt_path, invoice_number
+        )
+        
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                "Download Invoice", 
+                f, 
+                file_name=f"{invoice_number}.pdf",
+                mime="application/pdf"
             )
-            
-            pdf_file = f"invoice_{customer_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-            pdf.output(pdf_file)
-            
-            with open(pdf_file, "rb") as f:
-                st.download_button("Download Invoice", f, file_name=pdf_file)
+        
+        st.success(f"Invoice {invoice_number} generated successfully!")
     else:
         st.error("Please fill all required fields and select products.")
