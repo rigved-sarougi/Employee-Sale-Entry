@@ -8,9 +8,13 @@ fpdf
 pandas
 PyPDF2
 pdfplumber
+
+
+pandas
 python-dateutil
 numpy
 Pillow
+gspread
 oauth2client
 google-auth
 google-auth-oauthlib
