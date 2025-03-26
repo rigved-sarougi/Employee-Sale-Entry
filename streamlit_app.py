@@ -67,9 +67,6 @@ Bank Name: Example Bank
 Account Number: 1234567890
 IFSC Code: EXMP0001234
 Branch: Noida Branch
-Disclaimer: This Proforma Invoice is for estimation purposes only and is not a demand for payment. 
-Prices, taxes, and availability are subject to change. Final billing may vary. 
-Goods/services will be delivered only after confirmation and payment. No legal obligation is created by this document.
 """
 
 # Create directories for storing uploads if they don't exist
@@ -337,94 +334,124 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     return pdf, pdf_path
 
-# Streamlit UI
-st.title("")
+# Employee Authentication System
+def authenticate_employee():
+    st.subheader("Employee Authentication")
+    employee_id = st.text_input("Enter your Employee ID", type="password")
+    
+    if employee_id:
+        # Check if employee ID exists
+        valid_employee = Person[Person['Employee Code'] == employee_id]
+        if not valid_employee.empty:
+            st.session_state['authenticated'] = True
+            st.session_state['employee_id'] = employee_id
+            st.session_state['employee_name'] = valid_employee['Employee Name'].values[0]
+            st.success("Authentication successful! You can now access the system.")
+            return True
+        else:
+            st.error("Invalid Employee ID. Please try again.")
+            return False
+    return False
 
-# Employee Selection
-st.subheader("Employee Details")
-employee_names = Person['Employee Name'].tolist()
-selected_employee = st.selectbox("Select Employee", employee_names)
+# Main App Logic
+def main_app():
+    st.title("Sales Management System")
+    
+    # Employee Selection (now based on authenticated employee)
+    employee_name = st.session_state['employee_name']
+    st.subheader(f"Welcome, {employee_name}")
+    
+    # Fetch Discount Category
+    discount_category = Person[Person['Employee Name'] == employee_name]['Discount Category'].values[0]
 
-# Employee Selfie Upload
-st.subheader("Employee Verification")
-employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
+    # Employee Selfie Upload
+    st.subheader("Employee Verification")
+    employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
 
-# Fetch Discount Category
-discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
+    # Product Selection
+    st.subheader("Product Details")
+    product_names = Products['Product Name'].tolist()
+    selected_products = st.multiselect("Select Products", product_names)
 
-# Product Selection
-st.subheader("Product Details")
-product_names = Products['Product Name'].tolist()
-selected_products = st.multiselect("Select Products", product_names)
+    # Input Quantities for Each Selected Product
+    quantities = []
+    if selected_products:
+        for product in selected_products:
+            qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
+            quantities.append(qty)
 
-# Input Quantities for Each Selected Product
-quantities = []
-if selected_products:
-    for product in selected_products:
-        qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
-        quantities.append(qty)
+    # Discount Options
+    st.subheader("Discount Options")
+    col1, col2 = st.columns(2)
+    with col1:
+        overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+    with col2:
+        amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
 
-# Discount Options
-st.subheader("Discount Options")
-col1, col2 = st.columns(2)
-with col1:
-    overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
-with col2:
-    amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+    # Payment Details
+    st.subheader("Payment Details")
+    payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
 
-# Payment Details
-st.subheader("Payment Details")
-payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
+    amount_paid = 0.0
+    payment_receipt = None
 
-amount_paid = 0.0
-payment_receipt = None
+    if payment_status == "partial paid":
+        amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+        payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+    elif payment_status == "paid":
+        amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+        payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
-if payment_status == "partial paid":
-    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-elif payment_status == "paid":
-    amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-    payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+    # Outlet Selection
+    st.subheader("Outlet Details")
+    outlet_names = Outlet['Shop Name'].tolist()
+    selected_outlet = st.selectbox("Select Outlet", outlet_names)
 
-# Outlet Selection
-st.subheader("Outlet Details")
-outlet_names = Outlet['Shop Name'].tolist()
-selected_outlet = st.selectbox("Select Outlet", outlet_names)
+    # Fetch Outlet Details
+    outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
 
-# Fetch Outlet Details
-outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+    # Generate Invoice button
+    if st.button("Generate Invoice"):
+        if selected_products and selected_outlet:
+            # Generate invoice number
+            invoice_number = generate_invoice_number()
+            
+            # Save uploaded files
+            employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
+            payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
+            
+            customer_name = selected_outlet
+            gst_number = outlet_details['GST']
+            contact_number = outlet_details['Contact']
+            address = outlet_details['Address']
 
-# Generate Invoice button
-if st.button("Generate Invoice"):
-    if selected_employee and selected_products and selected_outlet:
-        # Generate invoice number
-        invoice_number = generate_invoice_number()
-        
-        # Save uploaded files
-        employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
-        payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
-        
-        customer_name = selected_outlet
-        gst_number = outlet_details['GST']
-        contact_number = outlet_details['Contact']
-        address = outlet_details['Address']
-
-        pdf, pdf_path = generate_invoice(
-            customer_name, gst_number, contact_number, address, 
-            selected_products, quantities, discount_category, 
-            selected_employee, overall_discount, amount_discount,
-            payment_status, amount_paid, employee_selfie_path, 
-            payment_receipt_path, invoice_number
-        )
-        
-        with open(pdf_path, "rb") as f:
-            st.download_button(
-                "Download Invoice", 
-                f, 
-                file_name=f"{invoice_number}.pdf",
-                mime="application/pdf"
+            pdf, pdf_path = generate_invoice(
+                customer_name, gst_number, contact_number, address, 
+                selected_products, quantities, discount_category, 
+                employee_name, overall_discount, amount_discount,
+                payment_status, amount_paid, employee_selfie_path, 
+                payment_receipt_path, invoice_number
             )
-        
-        st.success(f"Invoice {invoice_number} generated successfully!")
-    else:
-        st.error("Please fill all required fields and select products.")
+            
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    "Download Invoice", 
+                    f, 
+                    file_name=f"{invoice_number}.pdf",
+                    mime="application/pdf"
+                )
+            
+            st.success(f"Invoice {invoice_number} generated successfully!")
+        else:
+            st.error("Please select products and an outlet.")
+
+# Initialize session state
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+# App Flow
+if st.session_state['authenticated']:
+    main_app()
+else:
+    if authenticate_employee():
+        st.experimental_rerun()
