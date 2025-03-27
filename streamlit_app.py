@@ -81,14 +81,14 @@ Uttar Pradesh 201301
 GSTIN/UIN: 09AALCB9426H1ZA
 State Name: Uttar Pradesh, Code: 09
 """
-company_logo = 'ALLGEN TRADING logo.png'  # Ensure the logo file is in the same directory
+company_logo = 'ALLGEN TRADING logo.png'
 bank_details = """
 Disclaimer: This Proforma Invoice is for estimation purposes only and is not a demand for payment. 
 Prices, taxes, and availability are subject to change. Final billing may vary. 
 Goods/services will be delivered only after confirmation and payment. No legal obligation is created by this document.
 """
 
-# Create directories for storing uploads if they don't exist
+# Create directories for storing uploads
 os.makedirs("employee_selfies", exist_ok=True)
 os.makedirs("payment_receipts", exist_ok=True)
 os.makedirs("invoices", exist_ok=True)
@@ -97,31 +97,25 @@ os.makedirs("visit_selfies", exist_ok=True)
 # Custom PDF class
 class PDF(FPDF):
     def header(self):
-        # Add company logo
         if company_logo:
             self.image(company_logo, 10, 8, 33)
         
-        # Company name and address
         self.set_font('Arial', 'B', 16)
         self.cell(0, 10, company_name, ln=True, align='C')
         self.set_font('Arial', '', 10)
         self.multi_cell(0, 5, company_address, align='C')
         
-        # Invoice title
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'Proforma Invoice', ln=True, align='C')
-        self.line(10, 50, 200, 50)  # Horizontal line
+        self.line(10, 50, 200, 50)
         self.ln(1)
 
-# Function to generate unique invoice number
 def generate_invoice_number():
     return f"INV-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
-# Function to generate unique visit ID
 def generate_visit_id():
     return f"VISIT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
-# Function to save uploaded file
 def save_uploaded_file(uploaded_file, folder):
     if uploaded_file is not None:
         file_ext = os.path.splitext(uploaded_file.name)[1]
@@ -131,39 +125,26 @@ def save_uploaded_file(uploaded_file, folder):
         return file_path
     return None
 
-# Function to log sales data to Google Sheets
 def log_sales_to_gsheet(conn, sales_data):
     try:
-        # Fetch existing data
         existing_sales_data = conn.read(worksheet="Sales", usecols=list(range(len(SALES_SHEET_COLUMNS))), ttl=5)
         existing_sales_data = existing_sales_data.dropna(how="all")
-        
-        # Combine existing data with new data
         updated_sales_data = pd.concat([existing_sales_data, sales_data], ignore_index=True)
-        
-        # Update the Google Sheet
         conn.update(worksheet="Sales", data=updated_sales_data)
         st.success("Sales data successfully logged to Google Sheets!")
     except Exception as e:
         st.error(f"Error logging sales data: {e}")
 
-# Function to log visit data to Google Sheets
 def log_visit_to_gsheet(conn, visit_data):
     try:
-        # Fetch existing data
         existing_visit_data = conn.read(worksheet="Visits", usecols=list(range(len(VISIT_SHEET_COLUMNS))), ttl=5)
         existing_visit_data = existing_visit_data.dropna(how="all")
-        
-        # Combine existing data with new data
         updated_visit_data = pd.concat([existing_visit_data, visit_data], ignore_index=True)
-        
-        # Update the Google Sheet
         conn.update(worksheet="Visits", data=updated_visit_data)
         st.success("Visit data successfully logged to Google Sheets!")
     except Exception as e:
         st.error(f"Error logging visit data: {e}")
 
-# Generate Invoice
 def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
                     payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number):
@@ -209,44 +190,58 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     # Table rows
     pdf.set_font("Arial", '', 10)
-    total_price = 0
     sales_data = []
+    tax_rate = 0.18  # 18% GST
+    
+    # Calculate subtotal before any discounts
+    subtotal = 0
     for idx, (product, quantity) in enumerate(zip(selected_products, quantities)):
         product_data = Products[Products['Product Name'] == product].iloc[0]
-
+        
         if discount_category in product_data:
-            unit_price = float(product_data[discount_category])  # Use discount category price
+            unit_price = float(product_data[discount_category])
         else:
             unit_price = float(product_data['Price'])
-
-        # Apply overall discount
-        discounted_price = unit_price * (1 - overall_discount / 100)
-        item_total_price = discounted_price * quantity
-
+        
+        item_total = unit_price * quantity
+        subtotal += item_total
+        
         pdf.cell(10, 8, str(idx + 1), border=1)
         pdf.cell(70, 8, product, border=1)
         pdf.cell(20, 8, "3304", border=1, align='C')
         pdf.cell(20, 8, "18%", border=1, align='C')
         pdf.cell(20, 8, str(quantity), border=1, align='C')
-        pdf.cell(25, 8, f"{discounted_price:.2f}", border=1, align='R')
-        pdf.cell(25, 8, f"{item_total_price:.2f}", border=1, align='R')
-        total_price += item_total_price
+        pdf.cell(25, 8, f"{unit_price:.2f}", border=1, align='R')
+        pdf.cell(25, 8, f"{item_total:.2f}", border=1, align='R')
         pdf.ln()
 
-    # Apply amount discount if any
-    if amount_discount > 0:
-        total_price -= amount_discount
+    # Apply percentage discount
+    if overall_discount > 0:
+        discount_amount = subtotal * (overall_discount / 100)
+        discounted_subtotal = subtotal - discount_amount
+    else:
+        discounted_subtotal = subtotal
+    
+    # Apply amount discount
+    taxable_amount = max(discounted_subtotal - amount_discount, 0)
+    
+    # Calculate taxes
+    tax_amount = taxable_amount * tax_rate
+    cgst_amount = tax_amount / 2
+    sgst_amount = tax_amount / 2
+    grand_total = taxable_amount + tax_amount
 
-    # Tax and Grand Total
+    # Display totals
     pdf.ln(10)
-    tax_rate = 0.18
-    tax_amount = total_price * tax_rate
-    grand_total = math.ceil(total_price + tax_amount)
-
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(160, 10, "Subtotal", border=0, align='R')
-    pdf.cell(30, 10, f"{total_price + amount_discount:.2f}", border=1, align='R')
+    pdf.cell(30, 10, f"{subtotal:.2f}", border=1, align='R')
     pdf.ln()
+    
+    if overall_discount > 0:
+        pdf.cell(160, 10, f"Discount ({overall_discount}%)", border=0, align='R')
+        pdf.cell(30, 10, f"-{discount_amount:.2f}", border=1, align='R')
+        pdf.ln()
     
     if amount_discount > 0:
         pdf.cell(160, 10, "Amount Discount", border=0, align='R')
@@ -254,19 +249,19 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         pdf.ln()
     
     pdf.cell(160, 10, "Taxable Amount", border=0, align='R')
-    pdf.cell(30, 10, f"{total_price:.2f}", border=1, align='R')
+    pdf.cell(30, 10, f"{taxable_amount:.2f}", border=1, align='R')
     pdf.ln()
     
     pdf.cell(160, 10, "CGST (9%)", border=0, align='R')
-    pdf.cell(30, 10, f"{tax_amount / 2:.2f}", border=1, align='R')
+    pdf.cell(30, 10, f"{cgst_amount:.2f}", border=1, align='R')
     pdf.ln()
     
     pdf.cell(160, 10, "SGST (9%)", border=0, align='R')
-    pdf.cell(30, 10, f"{tax_amount / 2:.2f}", border=1, align='R')
+    pdf.cell(30, 10, f"{sgst_amount:.2f}", border=1, align='R')
     pdf.ln()
     
     pdf.cell(160, 10, "Grand Total", border=0, align='R')
-    pdf.cell(30, 10, f"{grand_total} INR", border=1, align='R', fill=True)
+    pdf.cell(30, 10, f"{grand_total:.2f} INR", border=1, align='R', fill=True)
     pdf.ln(10)
     
     # Payment Status
@@ -282,18 +277,16 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     pdf.set_font("Arial", '', 10)
     pdf.multi_cell(0, 5, bank_details)
     
-    # Add a new page for attachments
+    # Attachments
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "Attachments", ln=True)
     pdf.ln(10)
     
-    # Add employee selfie if available
     if employee_selfie_path:
         try:
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 10, "Employee Selfie:", ln=True)
-            # Resize image to fit PDF
             img = Image.open(employee_selfie_path)
             img.thumbnail((150, 150))
             temp_path = f"temp_{os.path.basename(employee_selfie_path)}"
@@ -304,12 +297,10 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         except Exception as e:
             st.error(f"Error adding employee selfie: {e}")
     
-    # Add payment receipt if available
     if payment_receipt_path and payment_status in ["paid", "partial paid"]:
         try:
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 10, "Payment Receipt:", ln=True)
-            # Resize image to fit PDF
             img = Image.open(payment_receipt_path)
             img.thumbnail((150, 150))
             temp_path = f"temp_{os.path.basename(payment_receipt_path)}"
@@ -329,8 +320,9 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
         else:
             unit_price = float(product_data['Price'])
             
-        discounted_price = unit_price * (1 - overall_discount / 100)
-        item_total_price = discounted_price * quantity
+        item_total = unit_price * quantity
+        item_taxable = item_total * (1 - overall_discount / 100) - (amount_discount * (item_total / subtotal))
+        item_tax = item_taxable * tax_rate
         
         sales_data.append({
             "Invoice Number": invoice_number,
@@ -349,14 +341,14 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
             "Product Category": product_data['Product Category'],
             "Quantity": quantity,
             "Unit Price": unit_price,
-            "Total Price": item_total_price,
+            "Total Price": item_total,
             "GST Rate": "18%",
-            "CGST Amount": item_total_price * 0.09,
-            "SGST Amount": item_total_price * 0.09,
-            "Grand Total": item_total_price * 1.18,
+            "CGST Amount": item_tax / 2,
+            "SGST Amount": item_tax / 2,
+            "Grand Total": item_taxable + item_tax,
             "Overall Discount (%)": overall_discount,
-            "Amount Discount (INR)": amount_discount,
-            "Discounted Price": discounted_price,
+            "Amount Discount (INR)": amount_discount * (item_total / subtotal),
+            "Discounted Price": unit_price * (1 - overall_discount / 100),
             "Payment Status": payment_status,
             "Amount Paid": amount_paid if payment_status in ["paid", "partial paid"] else 0,
             "Payment Receipt Path": payment_receipt_path if payment_status in ["paid", "partial paid"] else "",
@@ -374,18 +366,13 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     return pdf, pdf_path
 
-# Function to record visit
 def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_selfie_path, entry_time, exit_time):
     visit_id = generate_visit_id()
     visit_date = datetime.now().strftime("%d-%m-%Y")
     
-    # Calculate visit duration in minutes
     duration = (exit_time - entry_time).total_seconds() / 60
-    
-    # Get outlet details
     outlet_details = Outlet[Outlet['Shop Name'] == outlet_name].iloc[0]
     
-    # Prepare visit data
     visit_data = {
         "Visit ID": visit_id,
         "Employee Name": employee_name,
@@ -406,24 +393,19 @@ def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_s
         "Visit Status": "completed"
     }
     
-    # Log visit data to Google Sheets
     visit_df = pd.DataFrame([visit_data])
     log_visit_to_gsheet(conn, visit_df)
     
     return visit_id
 
-# Authentication function
 def authenticate_employee(employee_name, passkey):
-    """Check if the passkey matches the employee's Employee Code"""
     try:
         employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
         return str(passkey) == str(employee_code)
     except:
         return False
 
-# Main App with authentication
 def main():
-    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'selected_mode' not in st.session_state:
@@ -432,20 +414,14 @@ def main():
         st.session_state.employee_name = None
 
     if not st.session_state.authenticated:
-        # Show mode selection and authentication
         st.title("Employee Authentication")
         
-        # Mode selection
         mode = st.radio("Select Mode", ["Sales", "Visit"], key="mode_selection")
-        
-        # Employee selection
         employee_names = Person['Employee Name'].tolist()
         employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
-        
-        # Passkey input
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
         
-        if st.button("Log in"):
+        if st.button("Authenticate"):
             if authenticate_employee(employee_name, passkey):
                 st.session_state.authenticated = True
                 st.session_state.selected_mode = mode
@@ -454,39 +430,30 @@ def main():
             else:
                 st.error("Invalid Employee Code. Please try again.")
     else:
-        # Show the selected mode page
         if st.session_state.selected_mode == "Sales":
             sales_page()
         else:
             visit_page()
 
-# Sales Page
 def sales_page():
     st.title("Sales Management")
-    
-    # Use the authenticated employee name
     selected_employee = st.session_state.employee_name
 
-    # Employee Selfie Upload
     st.subheader("Employee Verification")
     employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
 
-    # Fetch Discount Category
     discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
 
-    # Product Selection
     st.subheader("Product Details")
     product_names = Products['Product Name'].tolist()
     selected_products = st.multiselect("Select Products", product_names)
 
-    # Input Quantities for Each Selected Product
     quantities = []
     if selected_products:
         for product in selected_products:
             qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
             quantities.append(qty)
 
-    # Discount Options
     st.subheader("Discount Options")
     col1, col2 = st.columns(2)
     with col1:
@@ -494,7 +461,6 @@ def sales_page():
     with col2:
         amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
 
-    # Payment Details
     st.subheader("Payment Details")
     payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
 
@@ -508,21 +474,16 @@ def sales_page():
         amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
         payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
-    # Outlet Selection
     st.subheader("Outlet Details")
     outlet_names = Outlet['Shop Name'].tolist()
     selected_outlet = st.selectbox("Select Outlet", outlet_names)
 
-    # Fetch Outlet Details
     outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
 
-    # Generate Invoice button
     if st.button("Generate Invoice"):
         if selected_products and selected_outlet:
-            # Generate invoice number
             invoice_number = generate_invoice_number()
             
-            # Save uploaded files
             employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
             payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
             
@@ -551,28 +512,21 @@ def sales_page():
         else:
             st.error("Please fill all required fields and select products.")
 
-# Visit Page
 def visit_page():
     st.title("Visit Management")
-    
-    # Use the authenticated employee name
     selected_employee = st.session_state.employee_name
 
-    # Outlet Selection
     st.subheader("Outlet Details")
     outlet_names = Outlet['Shop Name'].tolist()
     selected_outlet = st.selectbox("Select Outlet", outlet_names)
 
-    # Visit Details
     st.subheader("Visit Details")
     visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
     visit_notes = st.text_area("Visit Notes")
     
-    # Visit Selfie Upload
     st.subheader("Visit Verification")
     visit_selfie = st.file_uploader("Upload Visit Selfie", type=["jpg", "jpeg", "png"])
 
-    # Time Tracking
     st.subheader("Time Tracking")
     col1, col2 = st.columns(2)
     with col1:
@@ -580,15 +534,12 @@ def visit_page():
     with col2:
         exit_time = st.time_input("Exit Time", value=datetime.now().time())
 
-    # Record Visit button
     if st.button("Record Visit"):
         if selected_outlet:
-            # Combine date and time
             today = datetime.now().date()
             entry_datetime = datetime.combine(today, entry_time)
             exit_datetime = datetime.combine(today, exit_time)
             
-            # Save uploaded file
             visit_selfie_path = save_uploaded_file(visit_selfie, "visit_selfies") if visit_selfie else None
             
             visit_id = record_visit(
