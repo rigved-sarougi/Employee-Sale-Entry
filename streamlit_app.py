@@ -445,7 +445,7 @@ def main():
         # Passkey input
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
         
-        if st.button("Authenticate"):
+        if st.button("Log in"):
             if authenticate_employee(employee_name, passkey):
                 st.session_state.authenticated = True
                 st.session_state.selected_mode = mode
