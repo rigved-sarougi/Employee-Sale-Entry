@@ -412,24 +412,60 @@ def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_s
     
     return visit_id
 
-# Main App
-def main():
-    st.sidebar.title("Navigation")
-    app_mode = st.sidebar.radio("Select Mode", ["Sales", "Visit"])
+# Authentication function
+def authenticate_employee(employee_name, passkey):
+    """Check if the passkey matches the employee's Employee Code"""
+    try:
+        employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
+        return str(passkey) == str(employee_code)
+    except:
+        return False
 
-    if app_mode == "Sales":
-        sales_page()
+# Main App with authentication
+def main():
+    # Initialize session state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'selected_mode' not in st.session_state:
+        st.session_state.selected_mode = None
+    if 'employee_name' not in st.session_state:
+        st.session_state.employee_name = None
+
+    if not st.session_state.authenticated:
+        # Show mode selection and authentication
+        st.title("Employee Authentication")
+        
+        # Mode selection
+        mode = st.radio("Select Mode", ["Sales", "Visit"], key="mode_selection")
+        
+        # Employee selection
+        employee_names = Person['Employee Name'].tolist()
+        employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
+        
+        # Passkey input
+        passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
+        
+        if st.button("Authenticate"):
+            if authenticate_employee(employee_name, passkey):
+                st.session_state.authenticated = True
+                st.session_state.selected_mode = mode
+                st.session_state.employee_name = employee_name
+                st.rerun()
+            else:
+                st.error("Invalid Employee Code. Please try again.")
     else:
-        visit_page()
+        # Show the selected mode page
+        if st.session_state.selected_mode == "Sales":
+            sales_page()
+        else:
+            visit_page()
 
 # Sales Page
 def sales_page():
     st.title("Sales Management")
     
-    # Employee Selection
-    st.subheader("Employee Details")
-    employee_names = Person['Employee Name'].tolist()
-    selected_employee = st.selectbox("Select Employee", employee_names)
+    # Use the authenticated employee name
+    selected_employee = st.session_state.employee_name
 
     # Employee Selfie Upload
     st.subheader("Employee Verification")
@@ -482,7 +518,7 @@ def sales_page():
 
     # Generate Invoice button
     if st.button("Generate Invoice"):
-        if selected_employee and selected_products and selected_outlet:
+        if selected_products and selected_outlet:
             # Generate invoice number
             invoice_number = generate_invoice_number()
             
@@ -519,10 +555,8 @@ def sales_page():
 def visit_page():
     st.title("Visit Management")
     
-    # Employee Selection
-    st.subheader("Employee Details")
-    employee_names = Person['Employee Name'].tolist()
-    selected_employee = st.selectbox("Select Employee", employee_names)
+    # Use the authenticated employee name
+    selected_employee = st.session_state.employee_name
 
     # Outlet Selection
     st.subheader("Outlet Details")
@@ -548,7 +582,7 @@ def visit_page():
 
     # Record Visit button
     if st.button("Record Visit"):
-        if selected_employee and selected_outlet:
+        if selected_outlet:
             # Combine date and time
             today = datetime.now().date()
             entry_datetime = datetime.combine(today, entry_time)
