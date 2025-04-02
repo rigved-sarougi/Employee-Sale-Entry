@@ -24,6 +24,12 @@ SALES_SHEET_COLUMNS = [
     "Outlet Address",
     "Outlet State",
     "Outlet City",
+    "Distributor Firm Name",
+    "Distributor ID",
+    "Distributor Contact Person",
+    "Distributor Contact Number",
+    "Distributor Email",
+    "Distributor Territory",
     "Product ID",
     "Product Name",
     "Product Category",
@@ -71,6 +77,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 Products = pd.read_csv('Invoice - Products.csv')
 Outlet = pd.read_csv('Invoice - Outlet.csv')
 Person = pd.read_csv('Invoice - Person.csv')
+Distributors = pd.read_csv('Invoice - Distributors.csv')
 
 # Company Details
 company_name = "BIOLUME SKIN SCIENCE PRIVATE LIMITED"
@@ -145,9 +152,11 @@ def log_visit_to_gsheet(conn, visit_data):
     except Exception as e:
         st.error(f"Error logging visit data: {e}")
 
-def generate_invoice(customer_name, gst_number, contact_number, address, selected_products, quantities, 
+def generate_invoice(customer_name, gst_number, contact_number, address, state, city, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
-                    payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number):
+                    payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number,
+                    distributor_firm_name="", distributor_id="", distributor_contact_person="",
+                    distributor_contact_number="", distributor_email="", distributor_territory=""):
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -157,7 +166,14 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
     pdf.ln(0)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(0, 10, f"Sales Person: {employee_name}", ln=True, align='L')
-    pdf.ln(0)
+    
+    # Distributor details if available
+    if distributor_firm_name:
+        pdf.cell(0, 10, f"Distributor: {distributor_firm_name} ({distributor_id})", ln=True, align='L')
+        pdf.cell(0, 10, f"Contact: {distributor_contact_person} | {distributor_contact_number}", ln=True, align='L')
+        pdf.cell(0, 10, f"Territory: {distributor_territory}", ln=True, align='L')
+    
+    pdf.ln(5)
 
     # Customer details
     pdf.set_font("Arial", 'B', 12)
@@ -334,8 +350,14 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
             "Outlet Name": customer_name,
             "Outlet Contact": contact_number,
             "Outlet Address": address,
-            "Outlet State": "Uttar Pradesh",  # Default if not found in Outlet
-            "Outlet City": "Noida",  # Default if not found in Outlet
+            "Outlet State": state,
+            "Outlet City": city,
+            "Distributor Firm Name": distributor_firm_name,
+            "Distributor ID": distributor_id,
+            "Distributor Contact Person": distributor_contact_person,
+            "Distributor Contact Number": distributor_contact_number,
+            "Distributor Email": distributor_email,
+            "Distributor Territory": distributor_territory,
             "Product ID": product_data['Product ID'],
             "Product Name": product,
             "Product Category": product_data['Product Category'],
@@ -474,6 +496,34 @@ def sales_page():
         amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
         payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
+    st.subheader("Distributor Details")
+    distributor_option = st.radio("Distributor Selection", ["Select from list", "None"])
+    
+    distributor_firm_name = ""
+    distributor_id = ""
+    distributor_contact_person = ""
+    distributor_contact_number = ""
+    distributor_email = ""
+    distributor_territory = ""
+    
+    if distributor_option == "Select from list":
+        distributor_names = Distributors['Firm Name'].tolist()
+        selected_distributor = st.selectbox("Select Distributor", distributor_names)
+        distributor_details = Distributors[Distributors['Firm Name'] == selected_distributor].iloc[0]
+        
+        distributor_firm_name = selected_distributor
+        distributor_id = distributor_details['Distributor ID']
+        distributor_contact_person = distributor_details['Contact Person']
+        distributor_contact_number = distributor_details['Contact Number']
+        distributor_email = distributor_details['Email ID']
+        distributor_territory = distributor_details['Territory']
+        
+        st.text_input("Distributor ID", value=distributor_id, disabled=True)
+        st.text_input("Contact Person", value=distributor_contact_person, disabled=True)
+        st.text_input("Contact Number", value=distributor_contact_number, disabled=True)
+        st.text_input("Email", value=distributor_email, disabled=True)
+        st.text_input("Territory", value=distributor_territory, disabled=True)
+
     st.subheader("Outlet Details")
     outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
     
@@ -504,11 +554,13 @@ def sales_page():
             payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
             
             pdf, pdf_path = generate_invoice(
-                customer_name, gst_number, contact_number, address, 
+                customer_name, gst_number, contact_number, address, state, city,
                 selected_products, quantities, discount_category, 
                 selected_employee, overall_discount, amount_discount,
                 payment_status, amount_paid, employee_selfie_path, 
-                payment_receipt_path, invoice_number
+                payment_receipt_path, invoice_number,
+                distributor_firm_name, distributor_id, distributor_contact_person,
+                distributor_contact_number, distributor_email, distributor_territory
             )
             
             with open(pdf_path, "rb") as f:
