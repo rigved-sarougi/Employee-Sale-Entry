@@ -334,8 +334,8 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
             "Outlet Name": customer_name,
             "Outlet Contact": contact_number,
             "Outlet Address": address,
-            "Outlet State": Outlet[Outlet['Shop Name'] == customer_name]['State'].values[0],
-            "Outlet City": Outlet[Outlet['Shop Name'] == customer_name]['City'].values[0],
+            "Outlet State": "Uttar Pradesh",  # Default if not found in Outlet
+            "Outlet City": "Noida",  # Default if not found in Outlet
             "Product ID": product_data['Product ID'],
             "Product Name": product,
             "Product Category": product_data['Product Category'],
@@ -366,12 +366,12 @@ def generate_invoice(customer_name, gst_number, contact_number, address, selecte
 
     return pdf, pdf_path
 
-def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_selfie_path, entry_time, exit_time):
+def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, outlet_state, outlet_city, 
+                 visit_purpose, visit_notes, visit_selfie_path, entry_time, exit_time):
     visit_id = generate_visit_id()
     visit_date = datetime.now().strftime("%d-%m-%Y")
     
     duration = (exit_time - entry_time).total_seconds() / 60
-    outlet_details = Outlet[Outlet['Shop Name'] == outlet_name].iloc[0]
     
     visit_data = {
         "Visit ID": visit_id,
@@ -379,10 +379,10 @@ def record_visit(employee_name, outlet_name, visit_purpose, visit_notes, visit_s
         "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
         "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
         "Outlet Name": outlet_name,
-        "Outlet Contact": outlet_details['Contact'],
-        "Outlet Address": outlet_details['Address'],
-        "Outlet State": outlet_details['State'],
-        "Outlet City": outlet_details['City'],
+        "Outlet Contact": outlet_contact,
+        "Outlet Address": outlet_address,
+        "Outlet State": outlet_state,
+        "Outlet City": outlet_city,
         "Visit Date": visit_date,
         "Entry Time": entry_time.strftime("%H:%M:%S"),
         "Exit Time": exit_time.strftime("%H:%M:%S"),
@@ -475,23 +475,34 @@ def sales_page():
         payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
     st.subheader("Outlet Details")
-    outlet_names = Outlet['Shop Name'].tolist()
-    selected_outlet = st.selectbox("Select Outlet", outlet_names)
-
-    outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+    outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+    
+    if outlet_option == "Select from list":
+        outlet_names = Outlet['Shop Name'].tolist()
+        selected_outlet = st.selectbox("Select Outlet", outlet_names)
+        outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+        
+        customer_name = selected_outlet
+        gst_number = outlet_details['GST']
+        contact_number = outlet_details['Contact']
+        address = outlet_details['Address']
+        state = outlet_details['State']
+        city = outlet_details['City']
+    else:
+        customer_name = st.text_input("Outlet Name")
+        gst_number = st.text_input("GST Number")
+        contact_number = st.text_input("Contact Number")
+        address = st.text_area("Address")
+        state = st.text_input("State", "Uttar Pradesh")
+        city = st.text_input("City", "Noida")
 
     if st.button("Generate Invoice"):
-        if selected_products and selected_outlet:
+        if selected_products and customer_name:
             invoice_number = generate_invoice_number()
             
             employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
             payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
             
-            customer_name = selected_outlet
-            gst_number = outlet_details['GST']
-            contact_number = outlet_details['Contact']
-            address = outlet_details['Address']
-
             pdf, pdf_path = generate_invoice(
                 customer_name, gst_number, contact_number, address, 
                 selected_products, quantities, discount_category, 
@@ -517,8 +528,24 @@ def visit_page():
     selected_employee = st.session_state.employee_name
 
     st.subheader("Outlet Details")
-    outlet_names = Outlet['Shop Name'].tolist()
-    selected_outlet = st.selectbox("Select Outlet", outlet_names)
+    outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+    
+    if outlet_option == "Select from list":
+        outlet_names = Outlet['Shop Name'].tolist()
+        selected_outlet = st.selectbox("Select Outlet", outlet_names)
+        outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+        
+        outlet_name = selected_outlet
+        outlet_contact = outlet_details['Contact']
+        outlet_address = outlet_details['Address']
+        outlet_state = outlet_details['State']
+        outlet_city = outlet_details['City']
+    else:
+        outlet_name = st.text_input("Outlet Name")
+        outlet_contact = st.text_input("Outlet Contact")
+        outlet_address = st.text_area("Outlet Address")
+        outlet_state = st.text_input("Outlet State", "Uttar Pradesh")
+        outlet_city = st.text_input("Outlet City", "Noida")
 
     st.subheader("Visit Details")
     visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
@@ -535,7 +562,7 @@ def visit_page():
         exit_time = st.time_input("Exit Time", value=datetime.now().time())
 
     if st.button("Record Visit"):
-        if selected_outlet:
+        if outlet_name:
             today = datetime.now().date()
             entry_datetime = datetime.combine(today, entry_time)
             exit_datetime = datetime.combine(today, exit_time)
@@ -543,8 +570,9 @@ def visit_page():
             visit_selfie_path = save_uploaded_file(visit_selfie, "visit_selfies") if visit_selfie else None
             
             visit_id = record_visit(
-                selected_employee, selected_outlet, visit_purpose, 
-                visit_notes, visit_selfie_path, entry_datetime, exit_datetime
+                selected_employee, outlet_name, outlet_contact, outlet_address,
+                outlet_state, outlet_city, visit_purpose, visit_notes, 
+                visit_selfie_path, entry_datetime, exit_datetime
             )
             
             st.success(f"Visit {visit_id} recorded successfully!")
