@@ -1,14 +1,11 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import math
 from fpdf import FPDF
-from datetime import datetime, time
+from datetime import datetime
 import os
 import uuid
 from PIL import Image
-import time as t
-from geopy.geocoders import Nominatim
 
 # Display Title and Description
 st.title("Biolume: Sales & Visit Management System")
@@ -80,10 +77,9 @@ ATTENDANCE_SHEET_COLUMNS = [
     "Designation",
     "Date",
     "Status",
-    "Location Logs",
+    "Location Link",
     "Leave Reason",
-    "Check-in Time",
-    "Check-out Time"
+    "Check-in Time"
 ]
 
 # Establishing a Google Sheets connection
@@ -454,9 +450,10 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
     
     return visit_id
 
-def record_attendance(employee_name, status, location_logs="", leave_reason="", check_in_time="", check_out_time=""):
+def record_attendance(employee_name, status, location_link="", leave_reason=""):
     attendance_id = generate_attendance_id()
     current_date = datetime.now().strftime("%d-%m-%Y")
+    check_in_time = datetime.now().strftime("%H:%M:%S")
     
     attendance_data = {
         "Attendance ID": attendance_id,
@@ -465,26 +462,15 @@ def record_attendance(employee_name, status, location_logs="", leave_reason="", 
         "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
         "Date": current_date,
         "Status": status,
-        "Location Logs": location_logs,
+        "Location Link": location_link,
         "Leave Reason": leave_reason,
-        "Check-in Time": check_in_time,
-        "Check-out Time": check_out_time
+        "Check-in Time": check_in_time
     }
     
     attendance_df = pd.DataFrame([attendance_data])
     log_attendance_to_gsheet(conn, attendance_df)
     
     return attendance_id
-
-def get_location():
-    try:
-        geolocator = Nominatim(user_agent="geoapiExercises")
-        location = geolocator.geocode("My Location")
-        if location:
-            return f"{location.latitude}, {location.longitude}"
-        return "Location not available"
-    except:
-        return "Location service error"
 
 def authenticate_employee(employee_name, passkey):
     try:
@@ -500,10 +486,6 @@ def main():
         st.session_state.selected_mode = None
     if 'employee_name' not in st.session_state:
         st.session_state.employee_name = None
-    if 'attendance_started' not in st.session_state:
-        st.session_state.attendance_started = False
-    if 'location_logs' not in st.session_state:
-        st.session_state.location_logs = []
 
     if not st.session_state.authenticated:
         st.title("Employee Authentication")
@@ -714,41 +696,18 @@ def attendance_page():
     status = st.radio("Select Status", ["Working", "Leave"])
 
     if status == "Working":
-        if not st.session_state.attendance_started:
-            if st.button("Start Workday"):
-                st.session_state.attendance_started = True
-                st.session_state.check_in_time = datetime.now().strftime("%H:%M:%S")
-                st.session_state.location_logs = []
-                st.success("Workday started! Location tracking will run for 8 hours.")
+        live_location = st.text_input("Enter Live Location Link (Google Maps or similar)")
         
-        if st.session_state.attendance_started:
-            st.info("Location tracking in progress...")
-            
-            # Simulate location tracking (in a real app, you'd use actual GPS)
-            if st.button("Log Current Location"):
-                current_location = get_location()
-                current_time = datetime.now().strftime("%H:%M:%S")
-                st.session_state.location_logs.append(f"{current_time}: {current_location}")
-                st.success(f"Location logged: {current_location}")
-            
-            if st.button("End Workday"):
-                check_out_time = datetime.now().strftime("%H:%M:%S")
-                location_logs_str = "\n".join(st.session_state.location_logs)
-                
+        if st.button("Submit Attendance"):
+            if live_location:
                 attendance_id = record_attendance(
                     selected_employee,
                     "Working",
-                    location_logs_str,
-                    "",
-                    st.session_state.check_in_time,
-                    check_out_time
+                    live_location
                 )
-                
-                st.session_state.attendance_started = False
                 st.success(f"Attendance recorded successfully! ID: {attendance_id}")
-                
-                st.text("Location Logs:")
-                st.text(location_logs_str)
+            else:
+                st.error("Please provide your live location link")
     else:
         leave_reason = st.text_area("Leave Reason")
         if st.button("Submit Leave"):
@@ -756,8 +715,7 @@ def attendance_page():
                 attendance_id = record_attendance(
                     selected_employee,
                     "Leave",
-                    "",
-                    leave_reason
+                    leave_reason=leave_reason
                 )
                 st.success(f"Leave recorded successfully! ID: {attendance_id}")
             else:
