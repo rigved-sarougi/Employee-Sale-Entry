@@ -3,10 +3,12 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import math
 from fpdf import FPDF
-from datetime import datetime
+from datetime import datetime, time
 import os
 import uuid
 from PIL import Image
+import time as t
+from geopy.geocoders import Nominatim
 
 # Display Title and Description
 st.title("Biolume: Sales & Visit Management System")
@@ -19,6 +21,7 @@ SALES_SHEET_COLUMNS = [
     "Employee Code",
     "Designation",
     "Discount Category",
+    "Transaction Type",
     "Outlet Name",
     "Outlet Contact",
     "Outlet Address",
@@ -68,6 +71,19 @@ VISIT_SHEET_COLUMNS = [
     "Visit Notes",
     "Visit Selfie Path",
     "Visit Status"
+]
+
+ATTENDANCE_SHEET_COLUMNS = [
+    "Attendance ID",
+    "Employee Name",
+    "Employee Code",
+    "Designation",
+    "Date",
+    "Status",
+    "Location Logs",
+    "Leave Reason",
+    "Check-in Time",
+    "Check-out Time"
 ]
 
 # Establishing a Google Sheets connection
@@ -123,6 +139,9 @@ def generate_invoice_number():
 def generate_visit_id():
     return f"VISIT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
+def generate_attendance_id():
+    return f"ATT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+
 def save_uploaded_file(uploaded_file, folder):
     if uploaded_file is not None:
         file_ext = os.path.splitext(uploaded_file.name)[1]
@@ -152,16 +171,30 @@ def log_visit_to_gsheet(conn, visit_data):
     except Exception as e:
         st.error(f"Error logging visit data: {e}")
 
+def log_attendance_to_gsheet(conn, attendance_data):
+    try:
+        existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_attendance_data = existing_attendance_data.dropna(how="all")
+        updated_attendance_data = pd.concat([existing_attendance_data, attendance_data], ignore_index=True)
+        conn.update(worksheet="Attendance", data=updated_attendance_data)
+        st.success("Attendance data successfully logged to Google Sheets!")
+    except Exception as e:
+        st.error(f"Error logging attendance data: {e}")
+
 def generate_invoice(customer_name, gst_number, contact_number, address, state, city, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
                     payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number,
-                    distributor_firm_name="", distributor_id="", distributor_contact_person="",
+                    transaction_type, distributor_firm_name="", distributor_id="", distributor_contact_person="",
                     distributor_contact_number="", distributor_email="", distributor_territory=""):
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
     current_date = datetime.now().strftime("%d-%m-%Y")
 
+    # Transaction Type
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, f"Transaction Type: {transaction_type.upper()}", ln=True)
+    
     # Sales Person
     pdf.ln(0)
     pdf.set_font("Arial", 'B', 10)
@@ -347,6 +380,7 @@ def generate_invoice(customer_name, gst_number, contact_number, address, state, 
             "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
             "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
             "Discount Category": discount_category,
+            "Transaction Type": transaction_type,
             "Outlet Name": customer_name,
             "Outlet Contact": contact_number,
             "Outlet Address": address,
@@ -420,6 +454,38 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
     
     return visit_id
 
+def record_attendance(employee_name, status, location_logs="", leave_reason="", check_in_time="", check_out_time=""):
+    attendance_id = generate_attendance_id()
+    current_date = datetime.now().strftime("%d-%m-%Y")
+    
+    attendance_data = {
+        "Attendance ID": attendance_id,
+        "Employee Name": employee_name,
+        "Employee Code": Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0],
+        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
+        "Date": current_date,
+        "Status": status,
+        "Location Logs": location_logs,
+        "Leave Reason": leave_reason,
+        "Check-in Time": check_in_time,
+        "Check-out Time": check_out_time
+    }
+    
+    attendance_df = pd.DataFrame([attendance_data])
+    log_attendance_to_gsheet(conn, attendance_df)
+    
+    return attendance_id
+
+def get_location():
+    try:
+        geolocator = Nominatim(user_agent="geoapiExercises")
+        location = geolocator.geocode("My Location")
+        if location:
+            return f"{location.latitude}, {location.longitude}"
+        return "Location not available"
+    except:
+        return "Location service error"
+
 def authenticate_employee(employee_name, passkey):
     try:
         employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
@@ -434,11 +500,15 @@ def main():
         st.session_state.selected_mode = None
     if 'employee_name' not in st.session_state:
         st.session_state.employee_name = None
+    if 'attendance_started' not in st.session_state:
+        st.session_state.attendance_started = False
+    if 'location_logs' not in st.session_state:
+        st.session_state.location_logs = []
 
     if not st.session_state.authenticated:
         st.title("Employee Authentication")
         
-        mode = st.radio("Select Mode", ["Sales", "Visit"], key="mode_selection")
+        mode = st.radio("Select Mode", ["Sales", "Visit", "Attendance"], key="mode_selection")
         employee_names = Person['Employee Name'].tolist()
         employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
@@ -454,8 +524,10 @@ def main():
     else:
         if st.session_state.selected_mode == "Sales":
             sales_page()
-        else:
+        elif st.session_state.selected_mode == "Visit":
             visit_page()
+        else:
+            attendance_page()
 
 def sales_page():
     st.title("Sales Management")
@@ -465,6 +537,9 @@ def sales_page():
     employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
 
     discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
+
+    st.subheader("Transaction Details")
+    transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"])
 
     st.subheader("Product Details")
     product_names = Products['Product Name'].tolist()
@@ -558,7 +633,7 @@ def sales_page():
                 selected_products, quantities, discount_category, 
                 selected_employee, overall_discount, amount_discount,
                 payment_status, amount_paid, employee_selfie_path, 
-                payment_receipt_path, invoice_number,
+                payment_receipt_path, invoice_number, transaction_type,
                 distributor_firm_name, distributor_id, distributor_contact_person,
                 distributor_contact_number, distributor_email, distributor_territory
             )
@@ -630,6 +705,63 @@ def visit_page():
             st.success(f"Visit {visit_id} recorded successfully!")
         else:
             st.error("Please fill all required fields.")
+
+def attendance_page():
+    st.title("Attendance Management")
+    selected_employee = st.session_state.employee_name
+
+    st.subheader("Attendance Status")
+    status = st.radio("Select Status", ["Working", "Leave"])
+
+    if status == "Working":
+        if not st.session_state.attendance_started:
+            if st.button("Start Workday"):
+                st.session_state.attendance_started = True
+                st.session_state.check_in_time = datetime.now().strftime("%H:%M:%S")
+                st.session_state.location_logs = []
+                st.success("Workday started! Location tracking will run for 8 hours.")
+        
+        if st.session_state.attendance_started:
+            st.info("Location tracking in progress...")
+            
+            # Simulate location tracking (in a real app, you'd use actual GPS)
+            if st.button("Log Current Location"):
+                current_location = get_location()
+                current_time = datetime.now().strftime("%H:%M:%S")
+                st.session_state.location_logs.append(f"{current_time}: {current_location}")
+                st.success(f"Location logged: {current_location}")
+            
+            if st.button("End Workday"):
+                check_out_time = datetime.now().strftime("%H:%M:%S")
+                location_logs_str = "\n".join(st.session_state.location_logs)
+                
+                attendance_id = record_attendance(
+                    selected_employee,
+                    "Working",
+                    location_logs_str,
+                    "",
+                    st.session_state.check_in_time,
+                    check_out_time
+                )
+                
+                st.session_state.attendance_started = False
+                st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+                
+                st.text("Location Logs:")
+                st.text(location_logs_str)
+    else:
+        leave_reason = st.text_area("Leave Reason")
+        if st.button("Submit Leave"):
+            if leave_reason:
+                attendance_id = record_attendance(
+                    selected_employee,
+                    "Leave",
+                    "",
+                    leave_reason
+                )
+                st.success(f"Leave recorded successfully! ID: {attendance_id}")
+            else:
+                st.error("Please provide a leave reason")
 
 if __name__ == "__main__":
     main()
