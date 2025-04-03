@@ -8,15 +8,26 @@ import uuid
 from PIL import Image
 
 # Hide Streamlit footer, GitHub link, and hamburger menu
-hide_streamlit_style = """
+# Full CSS block to hide GitHub, Fork, and Streamlit branding
+hide_streamlit_ui = """
     <style>
+    /* Hide the main menu and footer */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .stDeployButton {display: none;}
-    .viewerBadge_container__1QSob {display: none;}
+
+    /* Hide deploy/fork buttons */
+    .st-emotion-cache-13ln4jf {display: none;} /* GitHub/Fork button container */
+    .st-emotion-cache-6qob1r {display: none;}  /* Sometimes fork buttons live here */
+    .viewerBadge_container__1QSob {display: none;} /* Streamlit 'Made with' badge */
+
+    /* Hide 'View on GitHub' and Fork ribbons if present */
+    a[href*="github.com"] {display: none !important;}
+
+    /* Force hide all top right buttons as a fallback */
+    [data-testid="stActionButtonIcon"] {display: none !important;}
     </style>
 """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.markdown(hide_streamlit_ui, unsafe_allow_html=True)
 
 
 # Display Title and Description
