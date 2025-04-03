@@ -18,7 +18,7 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-st.markdown("""
+hide_footer_style = """
     <style>
     footer {
         visibility: hidden;
@@ -31,9 +31,9 @@ st.markdown("""
         display: none !important;
     }
     </style>
-""", unsafe_allow_html=True)
+"""
 
-
+st.markdown(hide_footer_style, unsafe_allow_html=True)
 # Display Title and Description
 st.title("Biolume: Sales & Visit Management System")
 
