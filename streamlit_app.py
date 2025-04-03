@@ -79,7 +79,8 @@ ATTENDANCE_SHEET_COLUMNS = [
     "Status",
     "Location Link",
     "Leave Reason",
-    "Check-in Time"
+    "Check-in Time",
+    "Check-in Date Time"
 ]
 
 # Establishing a Google Sheets connection
@@ -136,7 +137,7 @@ def generate_visit_id():
     return f"VISIT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
 def generate_attendance_id():
-    return f"ATT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+    return f"ATT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:4].upper()}"
 
 def save_uploaded_file(uploaded_file, folder):
     if uploaded_file is not None:
@@ -169,14 +170,18 @@ def log_visit_to_gsheet(conn, visit_data):
 
 def log_attendance_to_gsheet(conn, attendance_data):
     try:
-        # First clear the worksheet to avoid duplication issues
-        conn.clear(worksheet="Attendance")
+        # Read existing data
+        existing_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_data = existing_data.dropna(how="all")
         
-        # Then write the new data
-        conn.update(worksheet="Attendance", data=attendance_data)
-        st.success("Attendance data successfully logged to Google Sheets!")
+        # Combine with new data
+        updated_data = pd.concat([existing_data, attendance_data], ignore_index=True)
+        
+        # Update the sheet
+        conn.update(worksheet="Attendance", data=updated_data)
+        return True, None
     except Exception as e:
-        st.error(f"Error logging attendance data: {e}")
+        return False, str(e)
 
 def generate_invoice(customer_name, gst_number, contact_number, address, state, city, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
@@ -453,51 +458,67 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
 
 def record_attendance(employee_name, status, location_link="", leave_reason=""):
     try:
-        # Read existing attendance data
-        existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
-        existing_attendance_data = existing_attendance_data.dropna(how="all")
+        # Get employee details
+        employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
+        designation = Person[Person['Employee Name'] == employee_name]['Designation'].values[0]
+        current_date = datetime.now().strftime("%d-%m-%Y")
+        current_datetime = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+        check_in_time = datetime.now().strftime("%H:%M:%S")
+        
+        # Generate attendance ID
+        attendance_id = generate_attendance_id()
+        
+        # Create attendance record
+        attendance_data = {
+            "Attendance ID": attendance_id,
+            "Employee Name": employee_name,
+            "Employee Code": employee_code,
+            "Designation": designation,
+            "Date": current_date,
+            "Status": status,
+            "Location Link": location_link,
+            "Leave Reason": leave_reason,
+            "Check-in Time": check_in_time,
+            "Check-in Date Time": current_datetime
+        }
+        
+        # Convert to DataFrame
+        attendance_df = pd.DataFrame([attendance_data])
+        
+        # Log to Google Sheets
+        success, error = log_attendance_to_gsheet(conn, attendance_df)
+        
+        if success:
+            return attendance_id, None
+        else:
+            return None, error
+            
     except Exception as e:
-        st.error(f"Error reading attendance data: {e}")
-        existing_attendance_data = pd.DataFrame(columns=ATTENDANCE_SHEET_COLUMNS)
-    
-    current_date = datetime.now().strftime("%d-%m-%Y")
-    employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
-    
-    # Check if attendance already exists for today
-    if not existing_attendance_data.empty:
-        existing_today = existing_attendance_data[
-            (existing_attendance_data['Employee Code'] == employee_code) & 
-            (existing_attendance_data['Date'] == current_date)
-        ]
-        if not existing_today.empty:
-            return None, "Attendance already recorded for today"
+        return None, f"Error creating attendance record: {str(e)}"
 
-    attendance_id = generate_attendance_id()
-    check_in_time = datetime.now().strftime("%H:%M:%S")
-    
-    attendance_data = {
-        "Attendance ID": attendance_id,
-        "Employee Name": employee_name,
-        "Employee Code": employee_code,
-        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
-        "Date": current_date,
-        "Status": status,
-        "Location Link": location_link,
-        "Leave Reason": leave_reason,
-        "Check-in Time": check_in_time
-    }
-    
-    # Create new DataFrame with all records (existing + new)
-    attendance_df = pd.DataFrame([attendance_data])
-    updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
-    
-    # Clear and update the worksheet
+def check_existing_attendance(employee_name):
     try:
-        conn.clear(worksheet="Attendance")
-        conn.update(worksheet="Attendance", data=updated_attendance_data)
-        return attendance_id, None
+        # Read existing attendance data
+        existing_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_data = existing_data.dropna(how="all")
+        
+        if existing_data.empty:
+            return False
+        
+        current_date = datetime.now().strftime("%d-%m-%Y")
+        employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
+        
+        # Check if attendance exists for today
+        existing_records = existing_data[
+            (existing_data['Employee Code'] == employee_code) & 
+            (existing_data['Date'] == current_date)
+        ]
+        
+        return not existing_records.empty
+        
     except Exception as e:
-        return None, f"Error updating attendance: {e}"
+        st.error(f"Error checking existing attendance: {str(e)}")
+        return False
 
 def authenticate_employee(employee_name, passkey):
     try:
@@ -776,41 +797,60 @@ def visit_page():
 def attendance_page():
     st.title("Attendance Management")
     selected_employee = st.session_state.employee_name
-
+    
+    # Check if attendance already marked for today
+    if check_existing_attendance(selected_employee):
+        st.warning("You have already marked your attendance for today.")
+        return
+    
     st.subheader("Attendance Status")
-    status = st.radio("Select Status", ["Working", "Leave"])
-
-    if status == "Working":
-        live_location = st.text_input("Enter Live Location Link (Google Maps or similar)")
+    status = st.radio("Select Status", ["Present", "Leave"], index=0)
+    
+    if status == "Present":
+        st.subheader("Location Verification")
+        live_location = st.text_input("Enter your current location (Google Maps link or address)", 
+                                    help="Please share your live location for verification")
         
-        if st.button("Submit Attendance"):
-            if live_location:
-                attendance_id, error = record_attendance(
-                    selected_employee,
-                    "Working",
-                    live_location
-                )
-                if error:
-                    st.error(error)
-                else:
-                    st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+        if st.button("Mark Attendance"):
+            if not live_location:
+                st.error("Please provide your location")
             else:
-                st.error("Please provide your live location link")
-    else:
-        leave_reason = st.text_area("Leave Reason")
-        if st.button("Submit Leave"):
-            if leave_reason:
-                attendance_id, error = record_attendance(
-                    selected_employee,
-                    "Leave",
-                    leave_reason=leave_reason
-                )
-                if error:
-                    st.error(error)
-                else:
-                    st.success(f"Leave recorded successfully! ID: {attendance_id}")
+                with st.spinner("Recording attendance..."):
+                    attendance_id, error = record_attendance(
+                        selected_employee,
+                        "Present",
+                        location_link=live_location
+                    )
+                    
+                    if error:
+                        st.error(f"Failed to record attendance: {error}")
+                    else:
+                        st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+                        st.balloons()
+    
+    else:  # Leave status
+        st.subheader("Leave Details")
+        leave_types = ["Sick Leave", "Personal Leave", "Vacation", "Other"]
+        leave_type = st.selectbox("Leave Type", leave_types)
+        leave_reason = st.text_area("Reason for Leave", 
+                                   placeholder="Please provide details about your leave")
+        
+        if st.button("Submit Leave Request"):
+            if not leave_reason:
+                st.error("Please provide a reason for your leave")
             else:
-                st.error("Please provide a leave reason")
+                full_reason = f"{leave_type}: {leave_reason}"
+                with st.spinner("Submitting leave request..."):
+                    attendance_id, error = record_attendance(
+                        selected_employee,
+                        "Leave",
+                        leave_reason=full_reason
+                    )
+                    
+                    if error:
+                        st.error(f"Failed to submit leave request: {error}")
+                    else:
+                        st.success(f"Leave request submitted successfully! ID: {attendance_id}")
 
 if __name__ == "__main__":
     main()
