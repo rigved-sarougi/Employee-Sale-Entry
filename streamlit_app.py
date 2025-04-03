@@ -6,6 +6,7 @@ from datetime import datetime, time
 import os
 import uuid
 from PIL import Image
+import time
 
 # Hide Streamlit footer and GitHub/Fork icons
 hide_streamlit_style = """
@@ -34,8 +35,104 @@ hide_footer_style = """
 """
 
 st.markdown(hide_footer_style, unsafe_allow_html=True)
+
+# Custom UI/UX Styling
+custom_style = """
+    <style>
+    /* Main background */
+    .stApp {
+        background-color: #EFF6FF;
+    }
+    
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: #1E3A8A !important;
+    }
+    
+    /* Buttons */
+    .stButton>button {
+        background-color: #3B82F6;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
+    
+    .stButton>button:hover {
+        background-color: #2563EB;
+        color: white;
+    }
+    
+    /* Input fields */
+    .stTextInput>div>div>input, 
+    .stTextArea>div>div>textarea,
+    .stNumberInput>div>div>input,
+    .stSelectbox>div>div>select {
+        border-radius: 8px;
+        border: 1px solid #D1D5DB;
+    }
+    
+    /* Cards and containers */
+    .st-eb, .st-cb, .st-cg, .st-cc, .st-cd, .st-ce, .st-cf {
+        background-color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    /* Tabs */
+    .st-b7 {
+        background-color: transparent !important;
+    }
+    
+    .st-b7 .st-b8 {
+        color: #6B7280;
+    }
+    
+    .st-b7 .st-b9 {
+        color: #1E3A8A;
+        border-bottom: 3px solid #1E3A8A;
+    }
+    
+    /* Radio buttons */
+    .st-bv {
+        background-color: white;
+        border-radius: 8px;
+        padding: 0.5rem;
+    }
+    
+    /* Success messages */
+    .stAlert .st-b6 {
+        background-color: #D1FAE5;
+        color: #065F46;
+    }
+    
+    /* Error messages */
+    .stAlert .st-b5 {
+        background-color: #FEE2E2;
+        color: #B91C1C;
+    }
+    
+    /* Custom card styling */
+    .custom-card {
+        background-color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    </style>
+"""
+st.markdown(custom_style, unsafe_allow_html=True)
+
 # Display Title and Description
-st.title("Biolume: Sales & Visit Management System")
+st.markdown("""
+    <div style='text-align: center; margin-bottom: 2rem;'>
+        <h1 style='color: #1E3A8A;'>Biolume</h1>
+        <p style='color: #6B7280;'>Sales & Visit Management System</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # Constants
 SALES_SHEET_COLUMNS = [
@@ -554,6 +651,15 @@ def authenticate_employee(employee_name, passkey):
     except:
         return False
 
+def create_card(title, value, change=None):
+    return f"""
+    <div style='background-color: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+        <p style='color: #6B7280; margin: 0;'>{title}</p>
+        <h3 style='color: #1E3A8A; margin: 0.5rem 0;'>{value}</h3>
+        {f"<p style='color: #10B981; margin: 0;'>{change}</p>" if change else ""}
+    </div>
+    """
+
 def main():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
@@ -563,21 +669,32 @@ def main():
         st.session_state.employee_name = None
 
     if not st.session_state.authenticated:
-        st.title("Employee Authentication")
-        
-        mode = st.radio("Select Mode", ["Sales", "Visit", "Attendance"], key="mode_selection")
-        employee_names = Person['Employee Name'].tolist()
-        employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
-        passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
-        
-        if st.button("Log in"):
-            if authenticate_employee(employee_name, passkey):
-                st.session_state.authenticated = True
-                st.session_state.selected_mode = mode
-                st.session_state.employee_name = employee_name
-                st.rerun()
-            else:
-                st.error("Invalid Employee Code. Please try again.")
+        with st.container():
+            col1, col2, col3 = st.columns([1,3,1])
+            with col2:
+                with st.form("auth_form"):
+                    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>Employee Login</h3>", 
+                               unsafe_allow_html=True)
+                    
+                    mode = st.radio("Select Mode", ["Sales", "Visit", "Attendance"], 
+                                   key="mode_selection", horizontal=True)
+                    
+                    employee_names = Person['Employee Name'].tolist()
+                    employee_name = st.selectbox("Select Your Name", employee_names, 
+                                               key="employee_select")
+                    
+                    passkey = st.text_input("Enter Your Employee Code", 
+                                          type="password", 
+                                          key="passkey_input")
+                    
+                    if st.form_submit_button("Log in", use_container_width=True):
+                        if authenticate_employee(employee_name, passkey):
+                            st.session_state.authenticated = True
+                            st.session_state.selected_mode = mode
+                            st.session_state.employee_name = employee_name
+                            st.rerun()
+                        else:
+                            st.error("Invalid Employee Code. Please try again.")
     else:
         if st.session_state.selected_mode == "Sales":
             sales_page()
@@ -587,132 +704,143 @@ def main():
             attendance_page()
 
 def sales_page():
-    st.title("Sales Management")
     selected_employee = st.session_state.employee_name
     
-    # Add tabs for new sale and sales history
+    st.markdown(f"""
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+        <h1 style='color: #1E3A8A;'>Sales Management</h1>
+        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+            {selected_employee}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     tab1, tab2 = st.tabs(["New Sale", "Sales History"])
     
     with tab1:
-        st.subheader("Employee Verification")
-        employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
-
-        discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
-
-        st.subheader("Transaction Details")
-        transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"])
-
-        st.subheader("Product Details")
-        product_names = Products['Product Name'].tolist()
-        selected_products = st.multiselect("Select Products", product_names)
-
-        quantities = []
-        if selected_products:
-            for product in selected_products:
-                qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
-                quantities.append(qty)
-
-        st.subheader("Discount Options")
-        col1, col2 = st.columns(2)
-        with col1:
-            overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
-        with col2:
-            amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
-
-        st.subheader("Payment Details")
-        payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
-
-        amount_paid = 0.0
-        payment_receipt = None
-
-        if payment_status == "partial paid":
-            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-        elif payment_status == "paid":
-            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-
-        st.subheader("Distributor Details")
-        distributor_option = st.radio("Distributor Selection", ["Select from list", "None"])
+        with st.expander("Employee Verification", expanded=True):
+            st.warning("Please upload your selfie for verification")
+            employee_selfie = st.file_uploader("Employee Selfie", type=["jpg", "jpeg", "png"], 
+                                             label_visibility="collapsed")
         
-        distributor_firm_name = ""
-        distributor_id = ""
-        distributor_contact_person = ""
-        distributor_contact_number = ""
-        distributor_email = ""
-        distributor_territory = ""
-        
-        if distributor_option == "Select from list":
-            distributor_names = Distributors['Firm Name'].tolist()
-            selected_distributor = st.selectbox("Select Distributor", distributor_names)
-            distributor_details = Distributors[Distributors['Firm Name'] == selected_distributor].iloc[0]
-            
-            distributor_firm_name = selected_distributor
-            distributor_id = distributor_details['Distributor ID']
-            distributor_contact_person = distributor_details['Contact Person']
-            distributor_contact_number = distributor_details['Contact Number']
-            distributor_email = distributor_details['Email ID']
-            distributor_territory = distributor_details['Territory']
-            
-            st.text_input("Distributor ID", value=distributor_id, disabled=True)
-            st.text_input("Contact Person", value=distributor_contact_person, disabled=True)
-            st.text_input("Contact Number", value=distributor_contact_number, disabled=True)
-            st.text_input("Email", value=distributor_email, disabled=True)
-            st.text_input("Territory", value=distributor_territory, disabled=True)
+        with st.expander("Transaction Details", expanded=True):
+            discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
+            transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"])
 
-        st.subheader("Outlet Details")
-        outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
-        
-        if outlet_option == "Select from list":
-            outlet_names = Outlet['Shop Name'].tolist()
-            selected_outlet = st.selectbox("Select Outlet", outlet_names)
-            outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
-            
-            customer_name = selected_outlet
-            gst_number = outlet_details['GST']
-            contact_number = outlet_details['Contact']
-            address = outlet_details['Address']
-            state = outlet_details['State']
-            city = outlet_details['City']
-        else:
-            customer_name = st.text_input("Outlet Name")
-            gst_number = st.text_input("GST Number")
-            contact_number = st.text_input("Contact Number")
-            address = st.text_area("Address")
-            state = st.text_input("State", "Uttar Pradesh")
-            city = st.text_input("City", "Noida")
+        with st.expander("Product Details", expanded=True):
+            product_names = Products['Product Name'].tolist()
+            selected_products = st.multiselect("Select Products", product_names)
 
-        if st.button("Generate Invoice"):
+            quantities = []
+            if selected_products:
+                for product in selected_products:
+                    qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
+                    quantities.append(qty)
+
+        with st.expander("Discount Options", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+            with col2:
+                amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+
+        with st.expander("Payment Details", expanded=True):
+            payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
+
+            amount_paid = 0.0
+            payment_receipt = None
+
+            if payment_status == "partial paid":
+                amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+                payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+            elif payment_status == "paid":
+                amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
+                payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+
+        with st.expander("Distributor Details", expanded=True):
+            distributor_option = st.radio("Distributor Selection", ["Select from list", "None"])
+            
+            distributor_firm_name = ""
+            distributor_id = ""
+            distributor_contact_person = ""
+            distributor_contact_number = ""
+            distributor_email = ""
+            distributor_territory = ""
+            
+            if distributor_option == "Select from list":
+                distributor_names = Distributors['Firm Name'].tolist()
+                selected_distributor = st.selectbox("Select Distributor", distributor_names)
+                distributor_details = Distributors[Distributors['Firm Name'] == selected_distributor].iloc[0]
+                
+                distributor_firm_name = selected_distributor
+                distributor_id = distributor_details['Distributor ID']
+                distributor_contact_person = distributor_details['Contact Person']
+                distributor_contact_number = distributor_details['Contact Number']
+                distributor_email = distributor_details['Email ID']
+                distributor_territory = distributor_details['Territory']
+                
+                st.text_input("Distributor ID", value=distributor_id, disabled=True)
+                st.text_input("Contact Person", value=distributor_contact_person, disabled=True)
+                st.text_input("Contact Number", value=distributor_contact_number, disabled=True)
+                st.text_input("Email", value=distributor_email, disabled=True)
+                st.text_input("Territory", value=distributor_territory, disabled=True)
+
+        with st.expander("Outlet Details", expanded=True):
+            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+            
+            if outlet_option == "Select from list":
+                outlet_names = Outlet['Shop Name'].tolist()
+                selected_outlet = st.selectbox("Select Outlet", outlet_names)
+                outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
+                
+                customer_name = selected_outlet
+                gst_number = outlet_details['GST']
+                contact_number = outlet_details['Contact']
+                address = outlet_details['Address']
+                state = outlet_details['State']
+                city = outlet_details['City']
+            else:
+                customer_name = st.text_input("Outlet Name")
+                gst_number = st.text_input("GST Number")
+                contact_number = st.text_input("Contact Number")
+                address = st.text_area("Address")
+                state = st.text_input("State", "Uttar Pradesh")
+                city = st.text_input("City", "Noida")
+
+        if st.button("Generate Invoice", use_container_width=True):
             if selected_products and customer_name:
-                invoice_number = generate_invoice_number()
-                
-                employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
-                payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
-                
-                pdf, pdf_path = generate_invoice(
-                    customer_name, gst_number, contact_number, address, state, city,
-                    selected_products, quantities, discount_category, 
-                    selected_employee, overall_discount, amount_discount,
-                    payment_status, amount_paid, employee_selfie_path, 
-                    payment_receipt_path, invoice_number, transaction_type,
-                    distributor_firm_name, distributor_id, distributor_contact_person,
-                    distributor_contact_number, distributor_email, distributor_territory
-                )
-                
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        "Download Invoice", 
-                        f, 
-                        file_name=f"{invoice_number}.pdf",
-                        mime="application/pdf"
+                with st.spinner("Generating invoice..."):
+                    invoice_number = generate_invoice_number()
+                    
+                    employee_selfie_path = save_uploaded_file(employee_selfie, "employee_selfies") if employee_selfie else None
+                    payment_receipt_path = save_uploaded_file(payment_receipt, "payment_receipts") if payment_receipt else None
+                    
+                    pdf, pdf_path = generate_invoice(
+                        customer_name, gst_number, contact_number, address, state, city,
+                        selected_products, quantities, discount_category, 
+                        selected_employee, overall_discount, amount_discount,
+                        payment_status, amount_paid, employee_selfie_path, 
+                        payment_receipt_path, invoice_number, transaction_type,
+                        distributor_firm_name, distributor_id, distributor_contact_person,
+                        distributor_contact_number, distributor_email, distributor_territory
                     )
-                
-                st.success(f"Invoice {invoice_number} generated successfully!")
+                    
+                    with open(pdf_path, "rb") as f:
+                        st.download_button(
+                            "Download Invoice", 
+                            f, 
+                            file_name=f"{invoice_number}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    
+                    st.success(f"Invoice {invoice_number} generated successfully!")
+                    st.balloons()
             else:
                 st.error("Please fill all required fields and select products.")
     
     with tab2:
-        st.subheader("Lookup Previous Sales")
+        st.subheader("Sales History")
         col1, col2, col3 = st.columns(3)
         with col1:
             invoice_number_search = st.text_input("Invoice Number")
@@ -721,163 +849,185 @@ def sales_page():
         with col3:
             outlet_name_search = st.text_input("Outlet Name")
             
-        if st.button("Search Sales"):
-            try:
-                sales_data = conn.read(worksheet="Sales", usecols=list(range(len(SALES_SHEET_COLUMNS))), ttl=5)
-                sales_data = sales_data.dropna(how="all")
-                
-                # Filter by employee first
-                employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
-                filtered_data = sales_data[sales_data['Employee Code'] == employee_code]
-                
-                # Apply additional filters if provided
-                if invoice_number_search:
-                    filtered_data = filtered_data[filtered_data['Invoice Number'].str.contains(invoice_number_search, case=False)]
-                if invoice_date_search:
-                    date_str = invoice_date_search.strftime("%d-%m-%Y")
-                    filtered_data = filtered_data[filtered_data['Invoice Date'] == date_str]
-                if outlet_name_search:
-                    filtered_data = filtered_data[filtered_data['Outlet Name'].str.contains(outlet_name_search, case=False)]
-                
-                if not filtered_data.empty:
-                    st.dataframe(filtered_data[['Invoice Number', 'Invoice Date', 'Outlet Name', 'Product Name', 'Quantity', 'Grand Total']])
+        if st.button("Search Sales", use_container_width=True):
+            with st.spinner("Searching sales records..."):
+                try:
+                    sales_data = conn.read(worksheet="Sales", usecols=list(range(len(SALES_SHEET_COLUMNS))), ttl=5)
+                    sales_data = sales_data.dropna(how="all")
                     
-                    # Option to download as CSV
-                    csv = filtered_data.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "Download as CSV",
-                        csv,
-                        "sales_history.csv",
-                        "text/csv",
-                        key='download-csv'
-                    )
-                else:
-                    st.warning("No matching sales records found")
-            except Exception as e:
-                st.error(f"Error retrieving sales data: {e}")
+                    # Filter by employee first
+                    employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
+                    filtered_data = sales_data[sales_data['Employee Code'] == employee_code]
+                    
+                    # Apply additional filters if provided
+                    if invoice_number_search:
+                        filtered_data = filtered_data[filtered_data['Invoice Number'].str.contains(invoice_number_search, case=False)]
+                    if invoice_date_search:
+                        date_str = invoice_date_search.strftime("%d-%m-%Y")
+                        filtered_data = filtered_data[filtered_data['Invoice Date'] == date_str]
+                    if outlet_name_search:
+                        filtered_data = filtered_data[filtered_data['Outlet Name'].str.contains(outlet_name_search, case=False)]
+                    
+                    if not filtered_data.empty:
+                        st.dataframe(filtered_data[['Invoice Number', 'Invoice Date', 'Outlet Name', 'Product Name', 'Quantity', 'Grand Total']])
+                        
+                        # Option to download as CSV
+                        csv = filtered_data.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            "Download as CSV",
+                            csv,
+                            "sales_history.csv",
+                            "text/csv",
+                            key='download-csv',
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("No matching sales records found")
+                except Exception as e:
+                    st.error(f"Error retrieving sales data: {e}")
 
 def visit_page():
-    st.title("Visit Management")
     selected_employee = st.session_state.employee_name
 
-    st.subheader("Outlet Details")
-    outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+    st.markdown(f"""
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+        <h1 style='color: #1E3A8A;'>Visit Management</h1>
+        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+            {selected_employee}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    if outlet_option == "Select from list":
-        outlet_names = Outlet['Shop Name'].tolist()
-        selected_outlet = st.selectbox("Select Outlet", outlet_names)
-        outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
-        
-        outlet_name = selected_outlet
-        outlet_contact = outlet_details['Contact']
-        outlet_address = outlet_details['Address']
-        outlet_state = outlet_details['State']
-        outlet_city = outlet_details['City']
-    else:
-        outlet_name = st.text_input("Outlet Name")
-        outlet_contact = st.text_input("Outlet Contact")
-        outlet_address = st.text_area("Outlet Address")
-        outlet_state = st.text_input("Outlet State", "Uttar Pradesh")
-        outlet_city = st.text_input("Outlet City", "Noida")
-
-    st.subheader("Visit Details")
-    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
-    visit_notes = st.text_area("Visit Notes")
-    
-    st.subheader("Visit Verification")
-    visit_selfie = st.file_uploader("Upload Visit Selfie", type=["jpg", "jpeg", "png"])
-
-    st.subheader("Time Tracking")
-    col1, col2 = st.columns(2)
-    with col1:
-        # Use None as default to force user selection
-        entry_time = st.time_input("Entry Time", value=None, key="entry_time")
-    with col2:
-        # Use None as default to force user selection
-        exit_time = st.time_input("Exit Time", value=None, key="exit_time")
-
-    if st.button("Record Visit"):
-        if outlet_name:
-            today = datetime.now().date()
+    with st.container():
+        with st.expander("Outlet Details", expanded=True):
+            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
             
-            # Set default times if user didn't select
-            if entry_time is None:
-                entry_time = datetime.now().time()
-            if exit_time is None:
-                exit_time = datetime.now().time()
+            if outlet_option == "Select from list":
+                outlet_names = Outlet['Shop Name'].tolist()
+                selected_outlet = st.selectbox("Select Outlet", outlet_names)
+                outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
                 
-            entry_datetime = datetime.combine(today, entry_time)
-            exit_datetime = datetime.combine(today, exit_time)
+                outlet_name = selected_outlet
+                outlet_contact = outlet_details['Contact']
+                outlet_address = outlet_details['Address']
+                outlet_state = outlet_details['State']
+                outlet_city = outlet_details['City']
+            else:
+                outlet_name = st.text_input("Outlet Name")
+                outlet_contact = st.text_input("Outlet Contact")
+                outlet_address = st.text_area("Outlet Address")
+                outlet_state = st.text_input("Outlet State", "Uttar Pradesh")
+                outlet_city = st.text_input("Outlet City", "Noida")
+
+        with st.expander("Visit Details", expanded=True):
+            visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
+            visit_notes = st.text_area("Visit Notes")
             
-            visit_selfie_path = save_uploaded_file(visit_selfie, "visit_selfies") if visit_selfie else None
-            
-            visit_id = record_visit(
-                selected_employee, outlet_name, outlet_contact, outlet_address,
-                outlet_state, outlet_city, visit_purpose, visit_notes, 
-                visit_selfie_path, entry_datetime, exit_datetime
-            )
-            
-            st.success(f"Visit {visit_id} recorded successfully!")
-        else:
-            st.error("Please fill all required fields.")
+        with st.expander("Visit Verification", expanded=True):
+            st.warning("Please upload your selfie with the outlet")
+            visit_selfie = st.file_uploader("Visit Selfie", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+
+        with st.expander("Time Tracking", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                entry_time = st.time_input("Entry Time", value=None, key="entry_time")
+            with col2:
+                exit_time = st.time_input("Exit Time", value=None, key="exit_time")
+
+        if st.button("Record Visit", use_container_width=True):
+            if outlet_name:
+                today = datetime.now().date()
+                
+                # Set default times if user didn't select
+                if entry_time is None:
+                    entry_time = datetime.now().time()
+                if exit_time is None:
+                    exit_time = datetime.now().time()
+                    
+                entry_datetime = datetime.combine(today, entry_time)
+                exit_datetime = datetime.combine(today, exit_time)
+                
+                visit_selfie_path = save_uploaded_file(visit_selfie, "visit_selfies") if visit_selfie else None
+                
+                with st.spinner("Recording visit..."):
+                    visit_id = record_visit(
+                        selected_employee, outlet_name, outlet_contact, outlet_address,
+                        outlet_state, outlet_city, visit_purpose, visit_notes, 
+                        visit_selfie_path, entry_datetime, exit_datetime
+                    )
+                    
+                    st.success(f"Visit {visit_id} recorded successfully!")
+                    st.balloons()
+            else:
+                st.error("Please fill all required fields.")
 
 def attendance_page():
-    st.title("Attendance Management")
     selected_employee = st.session_state.employee_name
+    
+    st.markdown(f"""
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+        <h1 style='color: #1E3A8A;'>Attendance Management</h1>
+        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+            {selected_employee}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Check if attendance already marked for today
     if check_existing_attendance(selected_employee):
         st.warning("You have already marked your attendance for today.")
         return
     
-    st.subheader("Attendance Status")
-    status = st.radio("Select Status", ["Present", "Leave"], index=0)
-    
-    if status == "Present":
-        st.subheader("Location Verification")
-        live_location = st.text_input("Enter your current location (Google Maps link or address)", 
-                                    help="Please share your live location for verification")
+    with st.container():
+        status = st.radio("Select Status", ["Present", "Leave"], index=0,
+                         format_func=lambda x: f"**{x}**")
         
-        if st.button("Mark Attendance"):
-            if not live_location:
-                st.error("Please provide your location")
-            else:
-                with st.spinner("Recording attendance..."):
-                    attendance_id, error = record_attendance(
-                        selected_employee,
-                        "Present",
-                        location_link=live_location
-                    )
-                    
-                    if error:
-                        st.error(f"Failed to record attendance: {error}")
-                    else:
-                        st.success(f"Attendance recorded successfully! ID: {attendance_id}")
-                        st.balloons()
-    
-    else:  # Leave status
-        st.subheader("Leave Details")
-        leave_types = ["Sick Leave", "Personal Leave", "Vacation", "Other"]
-        leave_type = st.selectbox("Leave Type", leave_types)
-        leave_reason = st.text_area("Reason for Leave", 
-                                   placeholder="Please provide details about your leave")
+        if status == "Present":
+            st.subheader("Location Verification")
+            live_location = st.text_input("Enter your current location (Google Maps link or address)", 
+                                        help="Please share your live location for verification")
+            
+            if st.button("Mark Attendance", use_container_width=True):
+                if not live_location:
+                    st.error("Please provide your location")
+                else:
+                    with st.spinner("Recording attendance..."):
+                        attendance_id, error = record_attendance(
+                            selected_employee,
+                            "Present",
+                            location_link=live_location
+                        )
+                        
+                        if error:
+                            st.error(f"Failed to record attendance: {error}")
+                        else:
+                            st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+                            st.balloons()
         
-        if st.button("Submit Leave Request"):
-            if not leave_reason:
-                st.error("Please provide a reason for your leave")
-            else:
-                full_reason = f"{leave_type}: {leave_reason}"
-                with st.spinner("Submitting leave request..."):
-                    attendance_id, error = record_attendance(
-                        selected_employee,
-                        "Leave",
-                        leave_reason=full_reason
-                    )
-                    
-                    if error:
-                        st.error(f"Failed to submit leave request: {error}")
-                    else:
-                        st.success(f"Leave request submitted successfully! ID: {attendance_id}")
+        else:  # Leave status
+            st.subheader("Leave Details")
+            leave_types = ["Sick Leave", "Personal Leave", "Vacation", "Other"]
+            leave_type = st.selectbox("Leave Type", leave_types)
+            leave_reason = st.text_area("Reason for Leave", 
+                                     placeholder="Please provide details about your leave")
+            
+            if st.button("Submit Leave Request", use_container_width=True):
+                if not leave_reason:
+                    st.error("Please provide a reason for your leave")
+                else:
+                    full_reason = f"{leave_type}: {leave_reason}"
+                    with st.spinner("Submitting leave request..."):
+                        attendance_id, error = record_attendance(
+                            selected_employee,
+                            "Leave",
+                            leave_reason=full_reason
+                        )
+                        
+                        if error:
+                            st.error(f"Failed to submit leave request: {error}")
+                        else:
+                            st.success(f"Leave request submitted successfully! ID: {attendance_id}")
+                            st.balloons()
 
 if __name__ == "__main__":
     main()
