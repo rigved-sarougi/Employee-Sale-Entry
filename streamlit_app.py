@@ -451,7 +451,7 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
     
     return visit_id
 
-def record_attendance(employee_name, status, location_link="", leave_reason="", work_remarks=""):
+def record_attendance(employee_name, status, location_link="", leave_reason=""):
     try:
         # Read existing attendance data
         existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
@@ -471,87 +471,6 @@ def record_attendance(employee_name, status, location_link="", leave_reason="", 
         ]
         if not existing_today.empty:
             return None, "Attendance already recorded for today"
-
-    attendance_id = generate_attendance_id()
-    check_in_time = datetime.now().strftime("%H:%M:%S")
-    
-    attendance_data = {
-        "Attendance ID": attendance_id,
-        "Employee Name": employee_name,
-        "Employee Code": employee_code,
-        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
-        "Date": current_date,
-        "Status": status,
-        "Location Link": location_link,
-        "Leave Reason": leave_reason if status == "Leave" else "",
-        "Work Remarks": work_remarks if status == "Working" else "",
-        "Check-in Time": check_in_time
-    }
-    
-    # Create new DataFrame with all records (existing + new)
-    attendance_df = pd.DataFrame([attendance_data])
-    updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
-    
-    # Clear and update the worksheet
-    try:
-        conn.clear(worksheet="Attendance")
-        conn.update(worksheet="Attendance", data=updated_attendance_data)
-        return attendance_id, None
-    except Exception as e:
-        return None, f"Error updating attendance: {e}"
-
-    attendance_id = generate_attendance_id()
-    check_in_time = datetime.now().strftime("%H:%M:%S")
-    
-    attendance_data = {
-        "Attendance ID": attendance_id,
-        "Employee Name": employee_name,
-        "Employee Code": employee_code,
-        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
-        "Date": current_date,
-        "Status": status,
-        "Leave Reason": leave_reason,
-        "Remark Note": remark_note,
-        "Check-in Time": check_in_time
-    }
-    
-    # Create new DataFrame with all records (existing + new)
-    attendance_df = pd.DataFrame([attendance_data])
-    updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
-    
-    # Clear and update the worksheet
-    try:
-        conn.clear(worksheet="Attendance")
-        conn.update(worksheet="Attendance", data=updated_attendance_data)
-        return attendance_id, None
-    except Exception as e:
-        return None, f"Error updating attendance: {e}"
-
-    attendance_id = generate_attendance_id()
-    check_in_time = datetime.now().strftime("%H:%M:%S")
-    
-    attendance_data = {
-        "Attendance ID": attendance_id,
-        "Employee Name": employee_name,
-        "Employee Code": employee_code,
-        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
-        "Date": current_date,
-        "Status": status,
-        "Leave Reason": leave_reason,  # This now stores either leave reason or working remarks
-        "Check-in Time": check_in_time
-    }
-    
-    # Create new DataFrame with all records (existing + new)
-    attendance_df = pd.DataFrame([attendance_data])
-    updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
-    
-    # Clear and update the worksheet
-    try:
-        conn.clear(worksheet="Attendance")
-        conn.update(worksheet="Attendance", data=updated_attendance_data)
-        return attendance_id, None
-    except Exception as e:
-        return None, f"Error updating attendance: {e}"
 
     attendance_id = generate_attendance_id()
     check_in_time = datetime.now().strftime("%H:%M:%S")
@@ -603,7 +522,7 @@ def main():
         employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
         
-        if st.button("Log in"):
+        if st.button("Authenticate"):
             if authenticate_employee(employee_name, passkey):
                 st.session_state.authenticated = True
                 st.session_state.selected_mode = mode
@@ -862,25 +781,23 @@ def attendance_page():
     status = st.radio("Select Status", ["Working", "Leave"])
 
     if status == "Working":
-        live_location = st.text_input("Enter Live Location Link (Google Maps or similar) (Optional)")
-        remark_note = st.text_area("Remark Note*", placeholder="Please enter your work remarks")
+        live_location = st.text_input("Enter Live Location Link (Google Maps or similar)")
         
         if st.button("Submit Attendance"):
-            if remark_note:  # Only check for remark note, location is optional
+            if live_location:
                 attendance_id, error = record_attendance(
                     selected_employee,
                     "Working",
-                    location_link=live_location,
-                    work_remarks=remark_note
+                    live_location
                 )
                 if error:
                     st.error(error)
                 else:
                     st.success(f"Attendance recorded successfully! ID: {attendance_id}")
             else:
-                st.error("Please provide your remark note")
+                st.error("Please provide your live location link")
     else:
-        leave_reason = st.text_area("Leave Reason*", placeholder="Please enter your leave reason")
+        leave_reason = st.text_area("Leave Reason")
         if st.button("Submit Leave"):
             if leave_reason:
                 attendance_id, error = record_attendance(
