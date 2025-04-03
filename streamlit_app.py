@@ -781,23 +781,21 @@ def attendance_page():
     status = st.radio("Select Status", ["Working", "Leave"])
 
     if status == "Working":
-        st.subheader("Location Verification")
-        st.info("Please share your current location link (Google Maps or similar)")
-        location_link = st.text_input("Location Link")
+        live_location = st.text_input("Enter Live Location Link (Google Maps or similar)")
         
         if st.button("Submit Attendance"):
-            if location_link:
+            if live_location:
                 attendance_id, error = record_attendance(
                     selected_employee,
                     "Working",
-                    location_link
+                    live_location
                 )
                 if error:
                     st.error(error)
                 else:
                     st.success(f"Attendance recorded successfully! ID: {attendance_id}")
             else:
-                st.error("Please provide your location link")
+                st.error("Please provide your live location link")
     else:
         leave_reason = st.text_area("Leave Reason")
         if st.button("Submit Leave"):
