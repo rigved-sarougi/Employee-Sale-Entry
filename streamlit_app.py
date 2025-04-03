@@ -7,63 +7,16 @@ import os
 import uuid
 from PIL import Image
 
-# Hide Streamlit footer, GitHub link, and hamburger menu
-# Full CSS block to hide GitHub, Fork, and Streamlit branding
-hide_streamlit_ui = """
+# Hide Streamlit footer and GitHub/Fork icons
+hide_streamlit_style = """
     <style>
-    /* Hide the main menu and footer */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-
-    /* Hide deploy/fork buttons */
-    .st-emotion-cache-13ln4jf {display: none;} /* GitHub/Fork button container */
-    .st-emotion-cache-6qob1r {display: none;}  /* Sometimes fork buttons live here */
-    .viewerBadge_container__1QSob {display: none;} /* Streamlit 'Made with' badge */
-
-    /* Hide 'View on GitHub' and Fork ribbons if present */
-    a[href*="github.com"] {display: none !important;}
-
-    /* Force hide all top right buttons as a fallback */
-    [data-testid="stActionButtonIcon"] {display: none !important;}
+    .stActionButton > button[title="Open source on GitHub"] {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
 """
-st.markdown(hide_streamlit_ui, unsafe_allow_html=True)
-
-custom_logo = """
-    <link rel="shortcut icon" href="ALLGEN TRADING logo.png">
-    <style>
-        /* Override Streamlit logo if shown */
-        .st-emotion-cache-1v0mbdj img {
-            content: url("ALLGEN TRADING logo.png"); /* Your custom logo URL */
-            max-height: 35px;
-        }
-    </style>
-"""
-st.markdown(custom_logo, unsafe_allow_html=True)
-
-lock_ui_controls = """
-    <style>
-        /* Hide hamburger menu and rerun buttons */
-        #MainMenu {visibility: hidden;}
-        button[title="Rerun"], button[title="Clear cache and rerun"] {
-            display: none !important;
-        }
-    </style>
-"""
-st.markdown(lock_ui_controls, unsafe_allow_html=True)
-
-
-hide_sidebar = """
-    <style>
-        [data-testid="stSidebar"] {
-            display: none !important;
-        }
-        [data-testid="stSidebarNav"] {
-            display: none !important;
-        }
-    </style>
-"""
-st.markdown(hide_sidebar, unsafe_allow_html=True)
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
 
