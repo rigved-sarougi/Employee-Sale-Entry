@@ -37,6 +37,8 @@ hide_footer_style = """
 st.markdown(hide_footer_style, unsafe_allow_html=True)
 
 # Custom UI/UX Styling
+# Update the custom_style section at the top of the file with this:
+
 custom_style = """
     <style>
     /* Main background */
@@ -44,15 +46,15 @@ custom_style = """
         background-color: #EFF6FF;
     }
     
-    /* Headers */
-    h1, h2, h3, h4, h5, h6 {
-        color: #1E3A8A !important;
+    /* All text in black */
+    body, p, h1, h2, h3, h4, h5, h6, div, span, input, textarea, select, label, button {
+        color: #000000 !important;
     }
     
-    /* Buttons */
+    /* Buttons - keep blue background with white text */
     .stButton>button {
         background-color: #3B82F6;
-        color: white;
+        color: white !important;
         border-radius: 8px;
         border: none;
         padding: 0.5rem 1rem;
@@ -61,7 +63,7 @@ custom_style = """
     
     .stButton>button:hover {
         background-color: #2563EB;
-        color: white;
+        color: white !important;
     }
     
     /* Input fields */
@@ -71,6 +73,7 @@ custom_style = """
     .stSelectbox>div>div>select {
         border-radius: 8px;
         border: 1px solid #D1D5DB;
+        color: #000000 !important;
     }
     
     /* Cards and containers */
@@ -87,11 +90,11 @@ custom_style = """
     }
     
     .st-b7 .st-b8 {
-        color: #6B7280;
+        color: #6B7280 !important;
     }
     
     .st-b7 .st-b9 {
-        color: #1E3A8A;
+        color: #1E3A8A !important;
         border-bottom: 3px solid #1E3A8A;
     }
     
@@ -105,13 +108,13 @@ custom_style = """
     /* Success messages */
     .stAlert .st-b6 {
         background-color: #D1FAE5;
-        color: #065F46;
+        color: #065F46 !important;
     }
     
     /* Error messages */
     .stAlert .st-b5 {
         background-color: #FEE2E2;
-        color: #B91C1C;
+        color: #B91C1C !important;
     }
     
     /* Custom card styling */
@@ -122,17 +125,29 @@ custom_style = """
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         margin-bottom: 1rem;
     }
+    
+    /* Employee badge in header */
+    .employee-badge {
+        background-color: #1E3A8A;
+        color: white !important;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+    }
     </style>
 """
 st.markdown(custom_style, unsafe_allow_html=True)
 
-# Display Title and Description
-st.markdown("""
-    <div style='text-align: center; margin-bottom: 2rem;'>
-        <h1 style='color: #1E3A8A;'>Biolume</h1>
-        <p style='color: #6B7280;'>Sales & Visit Management System</p>
+
+# In sales_page(), visit_page(), and attendance_page(), change the employee badge div to:
+st.markdown(f"""
+<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+    <h1 style='color: #1E3A8A;'>Sales Management</h1>
+    <div class="employee-badge">
+        {selected_employee}
     </div>
+</div>
 """, unsafe_allow_html=True)
+
 
 # Constants
 SALES_SHEET_COLUMNS = [
