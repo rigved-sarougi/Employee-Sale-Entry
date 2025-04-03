@@ -138,17 +138,6 @@ custom_style = """
 st.markdown(custom_style, unsafe_allow_html=True)
 
 
-# In sales_page(), visit_page(), and attendance_page(), change the employee badge div to:
-st.markdown(f"""
-<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-    <h1 style='color: #1E3A8A;'>Sales Management</h1>
-    <div class="employee-badge">
-        {selected_employee}
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
 # Constants
 SALES_SHEET_COLUMNS = [
     "Invoice Number",
@@ -1043,6 +1032,15 @@ def attendance_page():
                         else:
                             st.success(f"Leave request submitted successfully! ID: {attendance_id}")
                             st.balloons()
+# In sales_page(), visit_page(), and attendance_page(), change the employee badge div to:
+st.markdown(f"""
+<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+    <h1 style='color: #1E3A8A;'>Sales Management</h1>
+    <div class="employee-badge">
+        {selected_employee}
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
