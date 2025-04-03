@@ -8,7 +8,9 @@ import uuid
 from PIL import Image
 import time
 
-# Hide Streamlit footer and GitHub/Fork icons
+# =============================================
+# STYLE CONFIGURATION
+# =============================================
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -19,51 +21,56 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-hide_footer_style = """
-    <style>
-    footer {
-        visibility: hidden;
-    }
-    footer:after {
-        content: '';
-        display: none;
-    }
-    .css-15tx938.e8zbici2 {  /* This class targets the footer in some Streamlit builds */
-        display: none !important;
-    }
-    </style>
-"""
-
-st.markdown(hide_footer_style, unsafe_allow_html=True)
-
-# Custom UI/UX Styling
-# Update the custom_style section at the top of the file with this:
-
 custom_style = """
     <style>
-    /* Main background */
+    /* Main app styling */
     .stApp {
-        background-color: #EFF6FF;
+        background-color: #f8f9fa;
+        font-family: 'Arial', sans-serif;
     }
     
-    /* All text in black */
-    body, p, h1, h2, h3, h4, h5, h6, div, span, input, textarea, select, label, button {
+    /* Text styling */
+    body, p, h1, h2, h3, h4, h5, h6, div, span, input, textarea, select, label {
         color: #000000 !important;
+        line-height: 1.6;
     }
     
-    /* Buttons - keep blue background with white text */
+    /* Headers */
+    h1 {
+        font-size: 28px !important;
+        font-weight: 700 !important;
+        margin-bottom: 16px !important;
+    }
+    
+    h2 {
+        font-size: 22px !important;
+        font-weight: 600 !important;
+        margin-top: 24px !important;
+        margin-bottom: 12px !important;
+    }
+    
+    h3 {
+        font-size: 18px !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Buttons */
     .stButton>button {
-        background-color: #3B82F6;
+        background-color: #1E3A8A;
         color: white !important;
         border-radius: 8px;
         border: none;
-        padding: 0.5rem 1rem;
+        padding: 10px 24px;
         font-weight: 500;
+        width: 100%;
+        transition: all 0.3s ease;
+        margin-top: 16px !important;
     }
     
     .stButton>button:hover {
-        background-color: #2563EB;
-        color: white !important;
+        background-color: #1A337B;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     /* Input fields */
@@ -71,154 +78,154 @@ custom_style = """
     .stTextArea>div>div>textarea,
     .stNumberInput>div>div>input,
     .stSelectbox>div>div>select {
-        border-radius: 8px;
-        border: 1px solid #D1D5DB;
-        color: #000000 !important;
+        border-radius: 8px !important;
+        border: 1px solid #ced4da !important;
+        padding: 10px 12px !important;
+        margin-bottom: 16px !important;
     }
     
     /* Cards and containers */
     .st-eb, .st-cb, .st-cg, .st-cc, .st-cd, .st-ce, .st-cf {
         background-color: white;
         border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
     }
     
     /* Tabs */
-    .st-b7 {
-        background-color: transparent !important;
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
     }
     
-    .st-b7 .st-b8 {
-        color: #6B7280 !important;
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 20px;
+        border-radius: 8px 8px 0 0;
+        background-color: #f1f3f5;
+        transition: all 0.3s ease;
     }
     
-    .st-b7 .st-b9 {
+    .stTabs [aria-selected="true"] {
+        background-color: white;
         color: #1E3A8A !important;
+        font-weight: 600;
         border-bottom: 3px solid #1E3A8A;
     }
     
     /* Radio buttons */
-    .st-bv {
-        background-color: white;
+    .stRadio [role="radiogroup"] {
+        gap: 16px;
+    }
+    
+    .stRadio [role="radio"] {
+        padding: 8px 16px;
         border-radius: 8px;
-        padding: 0.5rem;
+        border: 1px solid #dee2e6;
     }
     
-    /* Success messages */
+    /* Alerts */
+    .stAlert {
+        border-radius: 8px;
+        padding: 16px;
+    }
+    
     .stAlert .st-b6 {
-        background-color: #D1FAE5;
-        color: #065F46 !important;
+        background-color: #d4edda;
+        color: #155724 !important;
     }
     
-    /* Error messages */
     .stAlert .st-b5 {
-        background-color: #FEE2E2;
-        color: #B91C1C !important;
+        background-color: #f8d7da;
+        color: #721c24 !important;
     }
     
-    /* Custom card styling */
-    .custom-card {
-        background-color: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
+    /* Expanders */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+        font-size: 16px;
+        padding: 12px 0;
     }
     
-    /* Employee badge in header */
+    .streamlit-expanderContent {
+        padding: 16px 0;
+    }
+    
+    /* File uploader */
+    .stFileUploader>label {
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+    
+    /* Spacing */
+    .stSpacer {
+        margin: 16px 0;
+    }
+    
+    /* Employee badge */
     .employee-badge {
         background-color: #1E3A8A;
         color: white !important;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 14px;
+    }
+    
+    /* Form labels */
+    .stTextInput>label, 
+    .stTextArea>label,
+    .stNumberInput>label,
+    .stSelectbox>label,
+    .stFileUploader>label,
+    .stDateInput>label,
+    .stTimeInput>label {
+        font-weight: 500 !important;
+        margin-bottom: 8px !important;
+    }
+    
+    /* Multiselect */
+    .stMultiSelect [role="button"] {
+        padding: 10px 12px !important;
+    }
+    
+    /* Date/Time inputs */
+    .stDateInput>div>div>input,
+    .stTimeInput>div>div>input {
+        padding: 10px 12px !important;
     }
     </style>
 """
 st.markdown(custom_style, unsafe_allow_html=True)
 
-# Display Title and Description
-st.markdown("""
-    <div style='text-align: center; margin-bottom: 2rem;'>
-        <h1 style='color: #1E3A8A;'>Biolume</h1>
-        <p style='color: #6B7280;'>Sales & Visit Management System</p>
-    </div>
-""", unsafe_allow_html=True)
-
-# Constants
+# =============================================
+# CONSTANTS AND CONFIGURATION
+# =============================================
 SALES_SHEET_COLUMNS = [
-    "Invoice Number",
-    "Invoice Date",
-    "Employee Name",
-    "Employee Code",
-    "Designation",
-    "Discount Category",
-    "Transaction Type",
-    "Outlet Name",
-    "Outlet Contact",
-    "Outlet Address",
-    "Outlet State",
-    "Outlet City",
-    "Distributor Firm Name",
-    "Distributor ID",
-    "Distributor Contact Person",
-    "Distributor Contact Number",
-    "Distributor Email",
-    "Distributor Territory",
-    "Product ID",
-    "Product Name",
-    "Product Category",
-    "Quantity",
-    "Unit Price",
-    "Total Price",
-    "GST Rate",
-    "CGST Amount",
-    "SGST Amount",
-    "Grand Total",
-    "Overall Discount (%)",
-    "Amount Discount (INR)",
-    "Discounted Price",
-    "Payment Status",
-    "Amount Paid",
-    "Payment Receipt Path",
-    "Employee Selfie Path",
-    "Invoice PDF Path"
+    "Invoice Number", "Invoice Date", "Employee Name", "Employee Code", "Designation",
+    "Discount Category", "Transaction Type", "Outlet Name", "Outlet Contact",
+    "Outlet Address", "Outlet State", "Outlet City", "Distributor Firm Name",
+    "Distributor ID", "Distributor Contact Person", "Distributor Contact Number",
+    "Distributor Email", "Distributor Territory", "Product ID", "Product Name",
+    "Product Category", "Quantity", "Unit Price", "Total Price", "GST Rate",
+    "CGST Amount", "SGST Amount", "Grand Total", "Overall Discount (%)",
+    "Amount Discount (INR)", "Discounted Price", "Payment Status", "Amount Paid",
+    "Payment Receipt Path", "Employee Selfie Path", "Invoice PDF Path"
 ]
 
 VISIT_SHEET_COLUMNS = [
-    "Visit ID",
-    "Employee Name",
-    "Employee Code",
-    "Designation",
-    "Outlet Name",
-    "Outlet Contact",
-    "Outlet Address",
-    "Outlet State",
-    "Outlet City",
-    "Visit Date",
-    "Entry Time",
-    "Exit Time",
-    "Visit Duration (minutes)",
-    "Visit Purpose",
-    "Visit Notes",
-    "Visit Selfie Path",
-    "Visit Status"
+    "Visit ID", "Employee Name", "Employee Code", "Designation", "Outlet Name",
+    "Outlet Contact", "Outlet Address", "Outlet State", "Outlet City", "Visit Date",
+    "Entry Time", "Exit Time", "Visit Duration (minutes)", "Visit Purpose",
+    "Visit Notes", "Visit Selfie Path", "Visit Status"
 ]
 
 ATTENDANCE_SHEET_COLUMNS = [
-    "Attendance ID",
-    "Employee Name",
-    "Employee Code",
-    "Designation",
-    "Date",
-    "Status",
-    "Location Link",
-    "Leave Reason",
-    "Check-in Time",
-    "Check-in Date Time"
+    "Attendance ID", "Employee Name", "Employee Code", "Designation", "Date",
+    "Status", "Location Link", "Leave Reason", "Check-in Time", "Check-in Date Time"
 ]
 
-# Establishing a Google Sheets connection
+# Establish Google Sheets connection
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Load data
@@ -249,7 +256,9 @@ os.makedirs("payment_receipts", exist_ok=True)
 os.makedirs("invoices", exist_ok=True)
 os.makedirs("visit_selfies", exist_ok=True)
 
-# Custom PDF class
+# =============================================
+# CUSTOM PDF CLASS
+# =============================================
 class PDF(FPDF):
     def header(self):
         if company_logo:
@@ -265,6 +274,9 @@ class PDF(FPDF):
         self.line(10, 50, 200, 50)
         self.ln(1)
 
+# =============================================
+# UTILITY FUNCTIONS
+# =============================================
 def generate_invoice_number():
     return f"INV-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
@@ -305,14 +317,9 @@ def log_visit_to_gsheet(conn, visit_data):
 
 def log_attendance_to_gsheet(conn, attendance_data):
     try:
-        # Read existing data
         existing_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
         existing_data = existing_data.dropna(how="all")
-        
-        # Combine with new data
         updated_data = pd.concat([existing_data, attendance_data], ignore_index=True)
-        
-        # Update the sheet
         conn.update(worksheet="Attendance", data=updated_data)
         return True, None
     except Exception as e:
@@ -662,65 +669,16 @@ def authenticate_employee(employee_name, passkey):
     except:
         return False
 
-def create_card(title, value, change=None):
-    return f"""
-    <div style='background-color: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-        <p style='color: #6B7280; margin: 0;'>{title}</p>
-        <h3 style='color: #1E3A8A; margin: 0.5rem 0;'>{value}</h3>
-        {f"<p style='color: #10B981; margin: 0;'>{change}</p>" if change else ""}
-    </div>
-    """
-
-def main():
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if 'selected_mode' not in st.session_state:
-        st.session_state.selected_mode = None
-    if 'employee_name' not in st.session_state:
-        st.session_state.employee_name = None
-
-    if not st.session_state.authenticated:
-        with st.container():
-            col1, col2, col3 = st.columns([1,3,1])
-            with col2:
-                with st.form("auth_form"):
-                    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>Employee Login</h3>", 
-                               unsafe_allow_html=True)
-                    
-                    mode = st.radio("Select Mode", ["Sales", "Visit", "Attendance"], 
-                                   key="mode_selection", horizontal=True)
-                    
-                    employee_names = Person['Employee Name'].tolist()
-                    employee_name = st.selectbox("Select Your Name", employee_names, 
-                                               key="employee_select")
-                    
-                    passkey = st.text_input("Enter Your Employee Code", 
-                                          type="password", 
-                                          key="passkey_input")
-                    
-                    if st.form_submit_button("Log in", use_container_width=True):
-                        if authenticate_employee(employee_name, passkey):
-                            st.session_state.authenticated = True
-                            st.session_state.selected_mode = mode
-                            st.session_state.employee_name = employee_name
-                            st.rerun()
-                        else:
-                            st.error("Invalid Employee Code. Please try again.")
-    else:
-        if st.session_state.selected_mode == "Sales":
-            sales_page()
-        elif st.session_state.selected_mode == "Visit":
-            visit_page()
-        else:
-            attendance_page()
-
+# =============================================
+# PAGE FUNCTIONS
+# =============================================
 def sales_page():
     selected_employee = st.session_state.employee_name
     
     st.markdown(f"""
-    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-        <h1 style='color: #1E3A8A;'>Sales Management</h1>
-        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;'>
+        <h1>Sales Management</h1>
+        <div class="employee-badge">
             {selected_employee}
         </div>
     </div>
@@ -729,47 +687,52 @@ def sales_page():
     tab1, tab2 = st.tabs(["New Sale", "Sales History"])
     
     with tab1:
-        with st.expander("Employee Verification", expanded=True):
+        with st.expander("**Employee Verification**", expanded=True):
             st.warning("Please upload your selfie for verification")
             employee_selfie = st.file_uploader("Employee Selfie", type=["jpg", "jpeg", "png"], 
                                              label_visibility="collapsed")
         
-        with st.expander("Transaction Details", expanded=True):
+        with st.expander("**Transaction Details**", expanded=True):
             discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
             transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"])
 
-        with st.expander("Product Details", expanded=True):
+        with st.expander("**Product Details**", expanded=True):
             product_names = Products['Product Name'].tolist()
             selected_products = st.multiselect("Select Products", product_names)
-
-            quantities = []
+            
             if selected_products:
+                st.markdown('<div class="stSpacer"></div>', unsafe_allow_html=True)
                 for product in selected_products:
-                    qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
-                    quantities.append(qty)
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.text(product)
+                    with col2:
+                        qty = st.number_input(f"Qty for {product}", min_value=1, value=1, step=1, 
+                                            label_visibility="collapsed")
+                        if 'quantities' not in st.session_state:
+                            st.session_state.quantities = []
+                        st.session_state.quantities.append(qty)
 
-        with st.expander("Discount Options", expanded=True):
+        with st.expander("**Discount Options**", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
-                overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+                overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, 
+                                                 value=0.0, step=0.1)
             with col2:
                 amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
 
-        with st.expander("Payment Details", expanded=True):
+        with st.expander("**Payment Details**", expanded=True):
             payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
-
+            
             amount_paid = 0.0
             payment_receipt = None
 
-            if payment_status == "partial paid":
-                amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-                payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
-            elif payment_status == "paid":
+            if payment_status in ["paid", "partial paid"]:
                 amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
                 payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
 
-        with st.expander("Distributor Details", expanded=True):
-            distributor_option = st.radio("Distributor Selection", ["Select from list", "None"])
+        with st.expander("**Distributor Details**", expanded=True):
+            distributor_option = st.radio("Distributor Selection", ["Select from list", "None"], horizontal=True)
             
             distributor_firm_name = ""
             distributor_id = ""
@@ -796,8 +759,8 @@ def sales_page():
                 st.text_input("Email", value=distributor_email, disabled=True)
                 st.text_input("Territory", value=distributor_territory, disabled=True)
 
-        with st.expander("Outlet Details", expanded=True):
-            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+        with st.expander("**Outlet Details**", expanded=True):
+            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"], horizontal=True)
             
             if outlet_option == "Select from list":
                 outlet_names = Outlet['Shop Name'].tolist()
@@ -828,7 +791,7 @@ def sales_page():
                     
                     pdf, pdf_path = generate_invoice(
                         customer_name, gst_number, contact_number, address, state, city,
-                        selected_products, quantities, discount_category, 
+                        selected_products, st.session_state.quantities, discount_category, 
                         selected_employee, overall_discount, amount_discount,
                         payment_status, amount_paid, employee_selfie_path, 
                         payment_receipt_path, invoice_number, transaction_type,
@@ -847,6 +810,7 @@ def sales_page():
                     
                     st.success(f"Invoice {invoice_number} generated successfully!")
                     st.balloons()
+                    st.session_state.quantities = []  # Reset quantities
             else:
                 st.error("Please fill all required fields and select products.")
     
@@ -901,17 +865,17 @@ def visit_page():
     selected_employee = st.session_state.employee_name
 
     st.markdown(f"""
-    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-        <h1 style='color: #1E3A8A;'>Visit Management</h1>
-        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;'>
+        <h1>Visit Management</h1>
+        <div class="employee-badge">
             {selected_employee}
         </div>
     </div>
     """, unsafe_allow_html=True)
     
     with st.container():
-        with st.expander("Outlet Details", expanded=True):
-            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+        with st.expander("**Outlet Details**", expanded=True):
+            outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"], horizontal=True)
             
             if outlet_option == "Select from list":
                 outlet_names = Outlet['Shop Name'].tolist()
@@ -930,15 +894,15 @@ def visit_page():
                 outlet_state = st.text_input("Outlet State", "Uttar Pradesh")
                 outlet_city = st.text_input("Outlet City", "Noida")
 
-        with st.expander("Visit Details", expanded=True):
+        with st.expander("**Visit Details**", expanded=True):
             visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
             visit_notes = st.text_area("Visit Notes")
             
-        with st.expander("Visit Verification", expanded=True):
+        with st.expander("**Visit Verification**", expanded=True):
             st.warning("Please upload your selfie with the outlet")
             visit_selfie = st.file_uploader("Visit Selfie", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
-        with st.expander("Time Tracking", expanded=True):
+        with st.expander("**Time Tracking**", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
                 entry_time = st.time_input("Entry Time", value=None, key="entry_time")
@@ -976,9 +940,9 @@ def attendance_page():
     selected_employee = st.session_state.employee_name
     
     st.markdown(f"""
-    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-        <h1 style='color: #1E3A8A;'>Attendance Management</h1>
-        <div style='background-color: #1E3A8A; color: white; padding: 0.5rem 1rem; border-radius: 8px;'>
+    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;'>
+        <h1>Attendance Management</h1>
+        <div class="employee-badge">
             {selected_employee}
         </div>
     </div>
@@ -990,8 +954,8 @@ def attendance_page():
         return
     
     with st.container():
-        status = st.radio("Select Status", ["Present", "Leave"], index=0,
-                         format_func=lambda x: f"**{x}**")
+        status = st.radio("**Select Status**", ["Present", "Leave"], index=0,
+                         format_func=lambda x: f"{x}", horizontal=True)
         
         if status == "Present":
             st.subheader("Location Verification")
@@ -1039,6 +1003,59 @@ def attendance_page():
                         else:
                             st.success(f"Leave request submitted successfully! ID: {attendance_id}")
                             st.balloons()
+
+# =============================================
+# MAIN APP FUNCTION
+# =============================================
+def main():
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'selected_mode' not in st.session_state:
+        st.session_state.selected_mode = None
+    if 'employee_name' not in st.session_state:
+        st.session_state.employee_name = None
+
+    if not st.session_state.authenticated:
+        st.markdown("""
+        <div style='text-align: center; margin-bottom: 32px;'>
+            <h1 style='color: #1E3A8A; margin-bottom: 8px;'>Biolume</h1>
+            <p style='font-size: 16px; color: #495057;'>Sales & Visit Management System</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.container():
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col2:
+                with st.form("auth_form"):
+                    st.markdown("<h3 style='text-align: center; margin-bottom: 24px;'>Employee Login</h3>", 
+                               unsafe_allow_html=True)
+                    
+                    mode = st.radio("Select Mode", ["Sales", "Visit", "Attendance"], 
+                                   key="mode_selection", horizontal=True)
+                    
+                    employee_names = Person['Employee Name'].tolist()
+                    employee_name = st.selectbox("Select Your Name", employee_names, 
+                                               key="employee_select")
+                    
+                    passkey = st.text_input("Enter Your Employee Code", 
+                                          type="password", 
+                                          key="passkey_input")
+                    
+                    if st.form_submit_button("Log in", use_container_width=True):
+                        if authenticate_employee(employee_name, passkey):
+                            st.session_state.authenticated = True
+                            st.session_state.selected_mode = mode
+                            st.session_state.employee_name = employee_name
+                            st.rerun()
+                        else:
+                            st.error("Invalid Employee Code. Please try again.")
+    else:
+        if st.session_state.selected_mode == "Sales":
+            sales_page()
+        elif st.session_state.selected_mode == "Visit":
+            visit_page()
+        else:
+            attendance_page()
 
 if __name__ == "__main__":
     main()
