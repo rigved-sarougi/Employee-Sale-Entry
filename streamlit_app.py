@@ -451,7 +451,7 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
     
     return visit_id
 
-def record_attendance(employee_name, status, location_link="", leave_reason=""):
+def record_attendance(employee_name, status, leave_reason="", remark_note=""):
     try:
         # Read existing attendance data
         existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
@@ -482,7 +482,33 @@ def record_attendance(employee_name, status, location_link="", leave_reason=""):
         "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
         "Date": current_date,
         "Status": status,
-        "Location Link": location_link,
+        "Leave Reason": leave_reason,
+        "Remark Note": remark_note,
+        "Check-in Time": check_in_time
+    }
+    
+    # Create new DataFrame with all records (existing + new)
+    attendance_df = pd.DataFrame([attendance_data])
+    updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
+    
+    # Clear and update the worksheet
+    try:
+        conn.clear(worksheet="Attendance")
+        conn.update(worksheet="Attendance", data=updated_attendance_data)
+        return attendance_id, None
+    except Exception as e:
+        return None, f"Error updating attendance: {e}"
+
+    attendance_id = generate_attendance_id()
+    check_in_time = datetime.now().strftime("%H:%M:%S")
+    
+    attendance_data = {
+        "Attendance ID": attendance_id,
+        "Employee Name": employee_name,
+        "Employee Code": employee_code,
+        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
+        "Date": current_date,
+        "Status": status,
         "Leave Reason": leave_reason,  # This now stores either leave reason or working remarks
         "Check-in Time": check_in_time
     }
@@ -808,25 +834,20 @@ def attendance_page():
     status = st.radio("Select Status", ["Working", "Leave"])
 
     if status == "Working":
-        live_location = st.text_input("Enter Live Location Link (Google Maps or similar)")
         remark_note = st.text_area("Remark Note (Optional)")
         
         if st.button("Submit Attendance"):
-            if live_location:
-                attendance_id, error = record_attendance(
-                    selected_employee,
-                    "Working",
-                    location_link=live_location,
-                    leave_reason=remark_note  # We'll repurpose leave_reason field for remarks
-                )
-                if error:
-                    st.error(error)
-                else:
-                    st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+            attendance_id, error = record_attendance(
+                selected_employee,
+                "Working",
+                remark_note=remark_note
+            )
+            if error:
+                st.error(error)
             else:
-                st.error("Please provide your live location link")
+                st.success(f"Attendance recorded successfully! ID: {attendance_id}")
     else:
-        leave_reason = st.text_area("Leave Reason")
+        leave_reason = st.text_area("Leave Reason (Required)")
         if st.button("Submit Leave"):
             if leave_reason:
                 attendance_id, error = record_attendance(
