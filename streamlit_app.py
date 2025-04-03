@@ -575,7 +575,7 @@ def main():
         employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
         
-        if st.button("Authenticate"):
+        if st.button("Log in"):
             if authenticate_employee(employee_name, passkey):
                 st.session_state.authenticated = True
                 st.session_state.selected_mode = mode
@@ -834,7 +834,7 @@ def attendance_page():
     status = st.radio("Select Status", ["Working", "Leave"])
 
     if status == "Working":
-        remark_note = st.text_area("Remark Note (Optional)")
+        remark_note = st.text_area("Live Location")
         
         if st.button("Submit Attendance"):
             attendance_id, error = record_attendance(
