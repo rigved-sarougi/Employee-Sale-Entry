@@ -7,6 +7,18 @@ import os
 import uuid
 from PIL import Image
 
+# Hide Streamlit footer, GitHub link, and hamburger menu
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display: none;}
+    .viewerBadge_container__1QSob {display: none;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+
 # Display Title and Description
 st.title("Biolume: Sales & Visit Management System")
 
