@@ -569,7 +569,7 @@ def main():
         employee_name = st.selectbox("Select Your Name", employee_names, key="employee_select")
         passkey = st.text_input("Enter Your Employee Code", type="password", key="passkey_input")
         
-        if st.button("Log in"):
+        if st.button("Log in", key="login_button"):
             if authenticate_employee(employee_name, passkey):
                 st.session_state.authenticated = True
                 st.session_state.selected_mode = mode
@@ -594,45 +594,45 @@ def sales_page():
     
     with tab1:
         st.subheader("Employee Verification")
-        employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"])
+        employee_selfie = st.file_uploader("Upload Employee Selfie", type=["jpg", "jpeg", "png"], key="employee_selfie")
 
         discount_category = Person[Person['Employee Name'] == selected_employee]['Discount Category'].values[0]
 
         st.subheader("Transaction Details")
-        transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"])
+        transaction_type = st.selectbox("Transaction Type", ["Sold", "Return", "Add On", "Damage", "Expired"], key="transaction_type")
 
         st.subheader("Product Details")
         product_names = Products['Product Name'].tolist()
-        selected_products = st.multiselect("Select Products", product_names)
+        selected_products = st.multiselect("Select Products", product_names, key="product_selection")
 
         quantities = []
         if selected_products:
-            for product in selected_products:
-                qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1)
+            for i, product in enumerate(selected_products):
+                qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1, key=f"qty_{i}")
                 quantities.append(qty)
 
         st.subheader("Discount Options")
         col1, col2 = st.columns(2)
         with col1:
-            overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+            overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key="percent_discount")
         with col2:
-            amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0)
+            amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0, key="amount_discount")
 
         st.subheader("Payment Details")
-        payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"])
+        payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"], key="payment_status")
 
         amount_paid = 0.0
         payment_receipt = None
 
         if payment_status == "partial paid":
-            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0, key="amount_paid_partial")
+            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"], key="payment_receipt_partial")
         elif payment_status == "paid":
-            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0)
-            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"])
+            amount_paid = st.number_input("Amount Paid (INR)", min_value=0.0, value=0.0, step=1.0, key="amount_paid_full")
+            payment_receipt = st.file_uploader("Upload Payment Receipt", type=["jpg", "jpeg", "png", "pdf"], key="payment_receipt_full")
 
         st.subheader("Distributor Details")
-        distributor_option = st.radio("Distributor Selection", ["Select from list", "None"])
+        distributor_option = st.radio("Distributor Selection", ["Select from list", "None"], key="distributor_option")
         
         distributor_firm_name = ""
         distributor_id = ""
@@ -643,7 +643,7 @@ def sales_page():
         
         if distributor_option == "Select from list":
             distributor_names = Distributors['Firm Name'].tolist()
-            selected_distributor = st.selectbox("Select Distributor", distributor_names)
+            selected_distributor = st.selectbox("Select Distributor", distributor_names, key="distributor_select")
             distributor_details = Distributors[Distributors['Firm Name'] == selected_distributor].iloc[0]
             
             distributor_firm_name = selected_distributor
@@ -653,18 +653,18 @@ def sales_page():
             distributor_email = distributor_details['Email ID']
             distributor_territory = distributor_details['Territory']
             
-            st.text_input("Distributor ID", value=distributor_id, disabled=True)
-            st.text_input("Contact Person", value=distributor_contact_person, disabled=True)
-            st.text_input("Contact Number", value=distributor_contact_number, disabled=True)
-            st.text_input("Email", value=distributor_email, disabled=True)
-            st.text_input("Territory", value=distributor_territory, disabled=True)
+            st.text_input("Distributor ID", value=distributor_id, disabled=True, key="distributor_id_display")
+            st.text_input("Contact Person", value=distributor_contact_person, disabled=True, key="distributor_contact_person_display")
+            st.text_input("Contact Number", value=distributor_contact_number, disabled=True, key="distributor_contact_number_display")
+            st.text_input("Email", value=distributor_email, disabled=True, key="distributor_email_display")
+            st.text_input("Territory", value=distributor_territory, disabled=True, key="distributor_territory_display")
 
         st.subheader("Outlet Details")
-        outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+        outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"], key="outlet_option")
         
         if outlet_option == "Select from list":
             outlet_names = Outlet['Shop Name'].tolist()
-            selected_outlet = st.selectbox("Select Outlet", outlet_names)
+            selected_outlet = st.selectbox("Select Outlet", outlet_names, key="outlet_select")
             outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
             
             customer_name = selected_outlet
@@ -674,14 +674,14 @@ def sales_page():
             state = outlet_details['State']
             city = outlet_details['City']
         else:
-            customer_name = st.text_input("Outlet Name")
-            gst_number = st.text_input("GST Number")
-            contact_number = st.text_input("Contact Number")
-            address = st.text_area("Address")
-            state = st.text_input("State", "Uttar Pradesh")
-            city = st.text_input("City", "Noida")
+            customer_name = st.text_input("Outlet Name", key="manual_outlet_name")
+            gst_number = st.text_input("GST Number", key="manual_gst_number")
+            contact_number = st.text_input("Contact Number", key="manual_contact_number")
+            address = st.text_area("Address", key="manual_address")
+            state = st.text_input("State", "Uttar Pradesh", key="manual_state")
+            city = st.text_input("City", "Noida", key="manual_city")
 
-        if st.button("Generate Invoice"):
+        if st.button("Generate Invoice", key="generate_invoice_button"):
             if selected_products and customer_name:
                 invoice_number = generate_invoice_number()
                 
@@ -703,7 +703,8 @@ def sales_page():
                         "Download Invoice", 
                         f, 
                         file_name=f"{invoice_number}.pdf",
-                        mime="application/pdf"
+                        mime="application/pdf",
+                        key=f"download_{invoice_number}"
                     )
                 
                 st.success(f"Invoice {invoice_number} generated successfully!")
@@ -714,13 +715,13 @@ def sales_page():
         st.subheader("Lookup Previous Sales")
         col1, col2, col3 = st.columns(3)
         with col1:
-            invoice_number_search = st.text_input("Invoice Number")
+            invoice_number_search = st.text_input("Invoice Number", key="invoice_search")
         with col2:
-            invoice_date_search = st.date_input("Invoice Date")
+            invoice_date_search = st.date_input("Invoice Date", key="date_search")
         with col3:
-            outlet_name_search = st.text_input("Outlet Name")
+            outlet_name_search = st.text_input("Outlet Name", key="outlet_search")
             
-        if st.button("Search Sales"):
+        if st.button("Search Sales", key="search_sales_button"):
             try:
                 sales_data = conn.read(worksheet="Sales", usecols=list(range(len(SALES_SHEET_COLUMNS))), ttl=5)
                 sales_data = sales_data.dropna(how="all")
@@ -760,11 +761,11 @@ def visit_page():
     selected_employee = st.session_state.employee_name
 
     st.subheader("Outlet Details")
-    outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"])
+    outlet_option = st.radio("Outlet Selection", ["Select from list", "Enter manually"], key="visit_outlet_option")
     
     if outlet_option == "Select from list":
         outlet_names = Outlet['Shop Name'].tolist()
-        selected_outlet = st.selectbox("Select Outlet", outlet_names)
+        selected_outlet = st.selectbox("Select Outlet", outlet_names, key="visit_outlet_select")
         outlet_details = Outlet[Outlet['Shop Name'] == selected_outlet].iloc[0]
         
         outlet_name = selected_outlet
@@ -773,29 +774,27 @@ def visit_page():
         outlet_state = outlet_details['State']
         outlet_city = outlet_details['City']
     else:
-        outlet_name = st.text_input("Outlet Name")
-        outlet_contact = st.text_input("Outlet Contact")
-        outlet_address = st.text_area("Outlet Address")
-        outlet_state = st.text_input("Outlet State", "Uttar Pradesh")
-        outlet_city = st.text_input("Outlet City", "Noida")
+        outlet_name = st.text_input("Outlet Name", key="visit_outlet_name")
+        outlet_contact = st.text_input("Outlet Contact", key="visit_outlet_contact")
+        outlet_address = st.text_area("Outlet Address", key="visit_outlet_address")
+        outlet_state = st.text_input("Outlet State", "Uttar Pradesh", key="visit_outlet_state")
+        outlet_city = st.text_input("Outlet City", "Noida", key="visit_outlet_city")
 
     st.subheader("Visit Details")
-    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"])
-    visit_notes = st.text_area("Visit Notes")
+    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"], key="visit_purpose")
+    visit_notes = st.text_area("Visit Notes", key="visit_notes")
     
     st.subheader("Visit Verification")
-    visit_selfie = st.file_uploader("Upload Visit Selfie", type=["jpg", "jpeg", "png"])
+    visit_selfie = st.file_uploader("Upload Visit Selfie", type=["jpg", "jpeg", "png"], key="visit_selfie")
 
     st.subheader("Time Tracking")
     col1, col2 = st.columns(2)
     with col1:
-        # Use None as default to force user selection
-        entry_time = st.time_input("Entry Time", value=None, key="entry_time")
+        entry_time = st.time_input("Entry Time", value=None, key="visit_entry_time")
     with col2:
-        # Use None as default to force user selection
-        exit_time = st.time_input("Exit Time", value=None, key="exit_time")
+        exit_time = st.time_input("Exit Time", value=None, key="visit_exit_time")
 
-    if st.button("Record Visit"):
+    if st.button("Record Visit", key="record_visit_button"):
         if outlet_name:
             today = datetime.now().date()
             
@@ -830,14 +829,15 @@ def attendance_page():
         return
     
     st.subheader("Attendance Status")
-    status = st.radio("Select Status", ["Present", "Leave"], index=0)
+    status = st.radio("Select Status", ["Present", "Leave"], index=0, key="attendance_status")
     
     if status == "Present":
         st.subheader("Location Verification")
         live_location = st.text_input("Enter your current location (Google Maps link or address)", 
-                                    help="Please share your live location for verification")
+                                    help="Please share your live location for verification",
+                                    key="location_input")
         
-        if st.button("Mark Attendance"):
+        if st.button("Mark Attendance", key="mark_attendance_button"):
             if not live_location:
                 st.error("Please provide your location")
             else:
@@ -857,11 +857,12 @@ def attendance_page():
     else:  # Leave status
         st.subheader("Leave Details")
         leave_types = ["Sick Leave", "Personal Leave", "Vacation", "Other"]
-        leave_type = st.selectbox("Leave Type", leave_types)
+        leave_type = st.selectbox("Leave Type", leave_types, key="leave_type")
         leave_reason = st.text_area("Reason for Leave", 
-                                   placeholder="Please provide details about your leave")
+                                   placeholder="Please provide details about your leave",
+                                   key="leave_reason")
         
-        if st.button("Submit Leave Request"):
+        if st.button("Submit Leave Request", key="submit_leave_button"):
             if not leave_reason:
                 st.error("Please provide a reason for your leave")
             else:
