@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from fpdf import FPDF
-from datetime import datetime
+from datetime import datetime, time
 import os
 import uuid
 from PIL import Image
@@ -169,10 +169,11 @@ def log_visit_to_gsheet(conn, visit_data):
 
 def log_attendance_to_gsheet(conn, attendance_data):
     try:
-        existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
-        existing_attendance_data = existing_attendance_data.dropna(how="all")
-        updated_attendance_data = pd.concat([existing_attendance_data, attendance_data], ignore_index=True)
-        conn.update(worksheet="Attendance", data=updated_attendance_data)
+        # First clear the worksheet to avoid duplication issues
+        conn.clear(worksheet="Attendance")
+        
+        # Then write the new data
+        conn.update(worksheet="Attendance", data=attendance_data)
         st.success("Attendance data successfully logged to Google Sheets!")
     except Exception as e:
         st.error(f"Error logging attendance data: {e}")
@@ -451,9 +452,13 @@ def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, out
     return visit_id
 
 def record_attendance(employee_name, status, location_link="", leave_reason=""):
-    # Check if attendance already recorded today
-    existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
-    existing_attendance_data = existing_attendance_data.dropna(how="all")
+    try:
+        # Read existing attendance data
+        existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_attendance_data = existing_attendance_data.dropna(how="all")
+    except Exception as e:
+        st.error(f"Error reading attendance data: {e}")
+        existing_attendance_data = pd.DataFrame(columns=ATTENDANCE_SHEET_COLUMNS)
     
     current_date = datetime.now().strftime("%d-%m-%Y")
     employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
@@ -482,11 +487,17 @@ def record_attendance(employee_name, status, location_link="", leave_reason=""):
         "Check-in Time": check_in_time
     }
     
+    # Create new DataFrame with all records (existing + new)
     attendance_df = pd.DataFrame([attendance_data])
     updated_attendance_data = pd.concat([existing_attendance_data, attendance_df], ignore_index=True)
-    conn.update(worksheet="Attendance", data=updated_attendance_data)
     
-    return attendance_id, None
+    # Clear and update the worksheet
+    try:
+        conn.clear(worksheet="Attendance")
+        conn.update(worksheet="Attendance", data=updated_attendance_data)
+        return attendance_id, None
+    except Exception as e:
+        return None, f"Error updating attendance: {e}"
 
 def authenticate_employee(employee_name, passkey):
     try:
@@ -731,13 +742,22 @@ def visit_page():
     st.subheader("Time Tracking")
     col1, col2 = st.columns(2)
     with col1:
-        entry_time = st.time_input("Entry Time", value=datetime.now().time())
+        # Use None as default to force user selection
+        entry_time = st.time_input("Entry Time", value=None, key="entry_time")
     with col2:
-        exit_time = st.time_input("Exit Time", value=datetime.now().time())
+        # Use None as default to force user selection
+        exit_time = st.time_input("Exit Time", value=None, key="exit_time")
 
     if st.button("Record Visit"):
         if outlet_name:
             today = datetime.now().date()
+            
+            # Set default times if user didn't select
+            if entry_time is None:
+                entry_time = datetime.now().time()
+            if exit_time is None:
+                exit_time = datetime.now().time()
+                
             entry_datetime = datetime.combine(today, entry_time)
             exit_datetime = datetime.combine(today, exit_time)
             
