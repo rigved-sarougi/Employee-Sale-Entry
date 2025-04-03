@@ -34,7 +34,7 @@ hide_footer_style = """
 
 st.markdown(hide_footer_style, unsafe_allow_html=True)
 # Display Title and Description
-st.title("Biolume: Sales & Visit Management System")
+st.title("Biolume: Management System")
 
 # Constants
 SALES_SHEET_COLUMNS = [
