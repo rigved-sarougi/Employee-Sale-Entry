@@ -7,51 +7,6 @@ import os
 import uuid
 from PIL import Image
 
-# Hide Streamlit footer and GitHub/Fork icons
-custom_css = """
-<style>
-    body, .stApp {
-        background-color: #ffffff;
-        color: #000000;
-        font-family: 'Segoe UI', sans-serif;
-    }
-    .stButton>button {
-        background-color: #007BFF;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 600;
-    }
-    .stButton>button:hover {
-        background-color: #0056b3;
-    }
-    .stTextInput>div>input,
-    .stSelectbox>div>div>div>input,
-    .stTextArea>div>textarea {
-        background-color: #f8f9ff;
-        border: 1px solid #007BFF;
-        border-radius: 6px;
-        color: #000;
-    }
-    .stRadio>div>label {
-        font-weight: 500;
-    }
-    .stTabs [data-baseweb="tab"] {
-        font-size: 16px;
-        font-weight: bold;
-        color: #007BFF;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #e9f0ff;
-    }
-    .css-1v3fvcr, .css-1vq4p4l {
-        color: black !important;
-    }
-</style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
-
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
