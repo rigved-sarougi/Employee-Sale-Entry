@@ -20,10 +20,18 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 st.markdown("""
     <style>
-        footer {visibility: hidden;}
+    footer {
+        visibility: hidden;
+    }
+    footer:after {
+        content: '';
+        display: none;
+    }
+    .css-15tx938.e8zbici2 {  /* This class targets the footer in some Streamlit builds */
+        display: none !important;
+    }
     </style>
 """, unsafe_allow_html=True)
-
 
 
 # Display Title and Description
