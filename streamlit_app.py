@@ -29,6 +29,44 @@ hide_streamlit_ui = """
 """
 st.markdown(hide_streamlit_ui, unsafe_allow_html=True)
 
+custom_logo = """
+    <link rel="shortcut icon" href="ALLGEN TRADING logo.png">
+    <style>
+        /* Override Streamlit logo if shown */
+        .st-emotion-cache-1v0mbdj img {
+            content: url("ALLGEN TRADING logo.png"); /* Your custom logo URL */
+            max-height: 35px;
+        }
+    </style>
+"""
+st.markdown(custom_logo, unsafe_allow_html=True)
+
+lock_ui_controls = """
+    <style>
+        /* Hide hamburger menu and rerun buttons */
+        #MainMenu {visibility: hidden;}
+        button[title="Rerun"], button[title="Clear cache and rerun"] {
+            display: none !important;
+        }
+    </style>
+"""
+st.markdown(lock_ui_controls, unsafe_allow_html=True)
+
+
+hide_sidebar = """
+    <style>
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        [data-testid="stSidebarNav"] {
+            display: none !important;
+        }
+    </style>
+"""
+st.markdown(hide_sidebar, unsafe_allow_html=True)
+
+
+
 
 # Display Title and Description
 st.title("Biolume: Sales & Visit Management System")
