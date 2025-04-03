@@ -169,14 +169,66 @@ def log_visit_to_gsheet(conn, visit_data):
 
 def log_attendance_to_gsheet(conn, attendance_data):
     try:
-        # First clear the worksheet to avoid duplication issues
-        conn.clear(worksheet="Attendance")
+        # First read all existing attendance data
+        existing_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_data = existing_data.dropna(how="all")
         
-        # Then write the new data
-        conn.update(worksheet="Attendance", data=attendance_data)
+        # Combine existing data with new data
+        updated_data = pd.concat([existing_data, attendance_data], ignore_index=True)
+        
+        # Clear and update the worksheet with all records
+        conn.clear(worksheet="Attendance")
+        conn.update(worksheet="Attendance", data=updated_data)
         st.success("Attendance data successfully logged to Google Sheets!")
     except Exception as e:
         st.error(f"Error logging attendance data: {e}")
+
+def record_attendance(employee_name, status, location_link="", leave_reason=""):
+    try:
+        # Read all existing attendance data
+        existing_attendance_data = conn.read(worksheet="Attendance", usecols=list(range(len(ATTENDANCE_SHEET_COLUMNS))), ttl=5)
+        existing_attendance_data = existing_attendance_data.dropna(how="all")
+    except Exception as e:
+        st.error(f"Error reading attendance data: {e}")
+        existing_attendance_data = pd.DataFrame(columns=ATTENDANCE_SHEET_COLUMNS)
+    
+    current_date = datetime.now().strftime("%d-%m-%Y")
+    employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
+    
+    # Check if attendance already exists for today
+    if not existing_attendance_data.empty:
+        existing_today = existing_attendance_data[
+            (existing_attendance_data['Employee Code'] == employee_code) & 
+            (existing_attendance_data['Date'] == current_date)
+        ]
+        if not existing_today.empty:
+            return None, "Attendance already recorded for today"
+
+    attendance_id = generate_attendance_id()
+    check_in_time = datetime.now().strftime("%H:%M:%S")
+    
+    attendance_data = {
+        "Attendance ID": attendance_id,
+        "Employee Name": employee_name,
+        "Employee Code": employee_code,
+        "Designation": Person[Person['Employee Name'] == employee_name]['Designation'].values[0],
+        "Date": current_date,
+        "Status": status,
+        "Location Link": location_link,
+        "Leave Reason": leave_reason,
+        "Check-in Time": check_in_time
+    }
+    
+    # Create DataFrame with new record
+    new_attendance_df = pd.DataFrame([attendance_data])
+    
+    # Combine with existing data
+    updated_attendance_data = pd.concat([existing_attendance_data, new_attendance_df], ignore_index=True)
+    
+    # Log to Google Sheets
+    log_attendance_to_gsheet(conn, updated_attendance_data)
+    
+    return attendance_id, None
 
 def generate_invoice(customer_name, gst_number, contact_number, address, state, city, selected_products, quantities, 
                     discount_category, employee_name, overall_discount, amount_discount, 
