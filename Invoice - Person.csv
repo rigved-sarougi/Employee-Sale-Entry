@@ -1,6 +1,6 @@
 Employee Name,Discount Category,Employee Code,Designation
 Abdul Samad,E1,BSS1049,BDM - NOIDA & GHAZIABAD
-Pradeep Kumar Verma,S1,BSS1087,BDM - SOUTH DELHI & NOIDA
+Pradeep Kumar Verma,E1,BSS1087,BDM - SOUTH DELHI & NOIDA
 Sanjeeb Das,S2,BSS1089,BDE - KOLKATTA
 Tanu Jha,E1,BSS1091,BDE - JAMSHEDPUR
 Mritunjay Pandey,S1,BSS1092,BDE - RANCHI
@@ -20,7 +20,7 @@ Neha Kanojiya,E1,BSS1180,BDE - Raipur
 Ankit Johari,S1,BSS1181,Sr. BDE - Bareilly
 Gourav Sharma,S2,BSS1183,BDE - Chandigarh
 Mayank Singh,E1,BSS1184,BDM - Chhattisgarh
-Mohit Thakur,S1,BSS1198,BDE - East Delhi & Ghaziabad
+Mohit Thakur,E1,BSS1198,BDE - East Delhi & Ghaziabad
 Shobha Singh,S2,BSS1194,BDE - Navi Mumbai
 Ajay Singh,E1,BSS1208,SO - Guwahati & Lower Assam
 Durga Prasad,S1,BSS1212,BDE - Vijaywada
@@ -43,7 +43,7 @@ Preeti Sharma,E1,BSS1244,BDE - Jalandhar
 Abhilasha Yadav,S1,BSS1247,BDE - Jabalpur
 Raghupatti Katta,S2,BSS1246,BDE - Hyderabad
 Priyanka Das,E1,BSS1242,BDE - Dibrugarh
-Megha Goswami,S1,BSS1245,BDM - East Delhi
+Megha Goswami,E1,BSS1245,BDM - East Delhi
 M. Sayeedullah,S2,BSS1248,BDE - Bhopal
 Gourav Kumar,E1,BSS1255,BDE - Amritsar
 Arun Kumar,S1,BSS1258,BDM - Agra
@@ -97,3 +97,6 @@ Sherin K,E1,BSS1252,Technical Educator - Palakkad
 Sangita Dattatray Walunj,S1,BSS1257,Technosales - Mumbai
 Jiteshta Thukral,S2,BSS1256,Technical Educator - Delhi/NCR
 Mohammad Khalid,E1,BSS1146,Manager - Operations & MIS
+Asha Sharma,E1,BSS1282,BDE - Faridabad
+Satish Tyagi,E1,BSS1288,ASM - (DELHI NCR)
+Monika,E1,BSS1308,BDE - West Delhi HQ
