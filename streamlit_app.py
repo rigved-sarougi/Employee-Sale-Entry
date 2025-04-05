@@ -553,6 +553,25 @@ def authenticate_employee(employee_name, passkey):
     except:
         return False
 
+# Add this function to create a consistent back button
+def add_back_button():
+    st.markdown("""
+    <style>
+    .back-button {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    if st.button("← Back", key="back_button"):
+        st.session_state.authenticated = False
+        st.session_state.selected_mode = None
+        st.rerun()
+
+# Modify the main function to include the back button
 def main():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
@@ -578,6 +597,9 @@ def main():
             else:
                 st.error("Invalid Employee Code. Please try again.")
     else:
+        # Add back button to all authenticated pages
+        add_back_button()
+        
         if st.session_state.selected_mode == "Sales":
             sales_page()
         elif st.session_state.selected_mode == "Visit":
