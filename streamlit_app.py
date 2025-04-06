@@ -629,17 +629,71 @@ def sales_page():
 
         quantities = []
         if selected_products:
-            for i, product in enumerate(selected_products):
-                qty = st.number_input(f"Quantity for {product}", min_value=1, value=1, step=1, key=f"qty_{i}")
-                quantities.append(qty)
+            # Display product prices based on discount category
+            st.markdown("### Product Prices")
+            price_cols = st.columns(3)
+            with price_cols[0]:
+                st.markdown("**Product**")
+            with price_cols[1]:
+                st.markdown("**Price (INR)**")
+            with price_cols[2]:
+                st.markdown("**Quantity**")
+            
+            subtotal = 0
+            for product in selected_products:
+                product_data = Products[Products['Product Name'] == product].iloc[0]
+                
+                if discount_category in product_data:
+                    unit_price = float(product_data[discount_category])
+                else:
+                    unit_price = float(product_data['Price'])
+                
+                cols = st.columns(3)
+                with cols[0]:
+                    st.text(product)
+                with cols[1]:
+                    st.text(f"₹{unit_price:.2f}")
+                with cols[2]:
+                    qty = st.number_input(f"Qty for {product}", min_value=1, value=1, step=1, 
+                                        key=f"qty_{product}", label_visibility="collapsed")
+                    quantities.append(qty)
+                
+                subtotal += unit_price * qty
+            
+            # Display subtotal
+            st.markdown("---")
+            st.markdown(f"**Subtotal: ₹{subtotal:.2f}**")
+            
+            # Discount section
+            st.subheader("Discount Options")
+            col1, col2 = st.columns(2)
+            with col1:
+                overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, 
+                                                 value=0.0, step=0.1, key="percent_discount")
+            with col2:
+                amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, 
+                                                step=1.0, key="amount_discount")
+            
+            # Calculate final amount
+            discount_amount = subtotal * (overall_discount / 100)
+            discounted_subtotal = subtotal - discount_amount - amount_discount
+            tax_rate = 0.18  # 18% GST
+            tax_amount = discounted_subtotal * tax_rate
+            grand_total = discounted_subtotal + tax_amount
+            
+            # Display final amount breakdown
+            st.markdown("---")
+            st.markdown("### Final Amount Calculation")
+            st.markdown(f"Subtotal: ₹{subtotal:.2f}")
+            if overall_discount > 0:
+                st.markdown(f"Percentage Discount ({overall_discount}%): -₹{discount_amount:.2f}")
+            if amount_discount > 0:
+                st.markdown(f"Amount Discount: -₹{amount_discount:.2f}")
+            st.markdown(f"Taxable Amount: ₹{discounted_subtotal:.2f}")
+            st.markdown(f"GST (18%): ₹{tax_amount:.2f}")
+            st.markdown(f"**Grand Total: ₹{grand_total:.2f}**")
 
-        st.subheader("Discount Options")
-        col1, col2 = st.columns(2)
-        with col1:
-            overall_discount = st.number_input("Percentage Discount (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key="percent_discount")
-        with col2:
-            amount_discount = st.number_input("Amount Discount (INR)", min_value=0.0, value=0.0, step=1.0, key="amount_discount")
-
+        # Rest of your existing code for payment details, distributor details, etc...
         st.subheader("Payment Details")
         payment_status = st.selectbox("Payment Status", ["pending", "paid", "partial paid"], key="payment_status")
 
