@@ -857,7 +857,7 @@ def visit_page():
         outlet_city = st.text_input("Outlet City", "Noida", key="visit_outlet_city")
 
     st.subheader("Visit Details")
-    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"], key="visit_purpose")
+    visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Demo", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"], key="visit_purpose")
     visit_notes = st.text_area("Visit Notes", key="visit_notes")
     
     st.subheader("Visit Verification")
