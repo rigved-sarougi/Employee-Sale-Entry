@@ -6,6 +6,14 @@ from datetime import datetime, time
 import os
 import uuid
 from PIL import Image
+from datetime import datetime, time, timedelta
+import pytz
+
+def get_ist_time():
+    """Get current time in Indian Standard Time (IST)"""
+    utc_now = datetime.now(pytz.utc)
+    ist = pytz.timezone('Asia/Kolkata')
+    return utc_now.astimezone(ist)
 
 def display_login_header():
     col1, col2, col3 = st.columns([1, 3, 1])
@@ -73,7 +81,7 @@ def backup_sheet(conn, worksheet_name):
     """Create a timestamped backup of the worksheet"""
     try:
         data = conn.read(worksheet=worksheet_name, ttl=1)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_ist_time().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{worksheet_name}_backup_{timestamp}"
         conn.update(worksheet=backup_name, data=data)
     except Exception as e:
@@ -244,13 +252,13 @@ class PDF(FPDF):
         self.ln(1)
 
 def generate_invoice_number():
-    return f"INV-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+    return f"INV-{get_ist_time().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
 def generate_visit_id():
-    return f"VISIT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+    return f"VISIT-{get_ist_time().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
 def generate_attendance_id():
-    return f"ATT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:4].upper()}"
+    return f"ATT-{get_ist_time().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:4].upper()}"
 
 def save_uploaded_file(uploaded_file, folder):
     if uploaded_file is not None:
@@ -329,14 +337,16 @@ def log_attendance_to_gsheet(conn, attendance_data):
     except Exception as e:
         return False, str(e)
 
+
 def generate_invoice(customer_name, gst_number, contact_number, address, state, city, selected_products, quantities, product_discounts,
                     discount_category, employee_name, payment_status, amount_paid, employee_selfie_path, payment_receipt_path, invoice_number,
                     transaction_type, distributor_firm_name="", distributor_id="", distributor_contact_person="",
-                    distributor_contact_number="", distributor_email="", distributor_territory="", remarks=""):
+                    distributor_contact_number="", distributor_email="", distributor_territory="", remarks="", invoice_date=None):
     pdf = PDF()
     pdf.alias_nb_pages()
     pdf.add_page()
-    current_date = datetime.now().strftime("%d-%m-%Y")
+    current_date = invoice_date if invoice_date else get_ist_time().strftime("%d-%m-%Y")  # Use provided date or current date
+
 
     # Transaction Type
     pdf.set_font("Arial", 'B', 12)
@@ -521,7 +531,7 @@ def generate_invoice(customer_name, gst_number, contact_number, address, state, 
 def record_visit(employee_name, outlet_name, outlet_contact, outlet_address, outlet_state, outlet_city, 
                  visit_purpose, visit_notes, visit_selfie_path, entry_time, exit_time, remarks=""):
     visit_id = generate_visit_id()
-    visit_date = datetime.now().strftime("%d-%m-%Y")
+    visit_date = get_ist_time().strftime("%d-%m-%Y")
     
     duration = (exit_time - entry_time).total_seconds() / 60
     
@@ -555,9 +565,9 @@ def record_attendance(employee_name, status, location_link="", leave_reason=""):
     try:
         employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
         designation = Person[Person['Employee Name'] == employee_name]['Designation'].values[0]
-        current_date = datetime.now().strftime("%d-%m-%Y")
-        current_datetime = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-        check_in_time = datetime.now().strftime("%H:%M:%S")
+        current_date = get_ist_time().strftime("%d-%m-%Y")
+        current_datetime = get_ist_time().strftime("%d-%m-%Y %H:%M:%S")
+        check_in_time = get_ist_time().strftime("%H:%M:%S")
         
         attendance_id = generate_attendance_id()
         
@@ -594,7 +604,7 @@ def check_existing_attendance(employee_name):
         if existing_data.empty:
             return False
         
-        current_date = datetime.now().strftime("%d-%m-%Y")
+        current_date = get_ist_time().strftime("%d-%m-%Y")
         employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
         
         existing_records = existing_data[
@@ -709,10 +719,7 @@ def main():
 def sales_page():
     st.title("Sales Management")
     selected_employee = st.session_state.employee_name
-    
-    # Empty remarks since we removed the location input
     sales_remarks = ""
-    
     tab1, tab2 = st.tabs(["New Sale", "Sales History"])
     
     with tab1:
@@ -887,20 +894,23 @@ def sales_page():
         def load_sales_data():
             try:
                 sales_data = conn.read(worksheet="Sales", ttl=5)
-                sales_data = sales_data.dropna(how="all")
-                employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
-                filtered_data = sales_data[sales_data['Employee Code'] == employee_code]
+                sales_data = sales_data.dropna(how='all')
                 
-                # Convert all columns to appropriate types
-                filtered_data['Outlet Name'] = filtered_data['Outlet Name'].astype(str)
-                filtered_data['Invoice Number'] = filtered_data['Invoice Number'].astype(str)
-                filtered_data['Invoice Date'] = pd.to_datetime(filtered_data['Invoice Date'], dayfirst=True)
+                # Convert columns to proper types
+                sales_data = sales_data.copy()  # Avoid SettingWithCopyWarning
+                sales_data['Outlet Name'] = sales_data['Outlet Name'].astype(str)
+                sales_data['Invoice Number'] = sales_data['Invoice Number'].astype(str)
+                sales_data['Invoice Date'] = pd.to_datetime(sales_data['Invoice Date'], dayfirst=True)
                 
                 # Convert numeric columns
                 numeric_cols = ['Grand Total', 'Unit Price', 'Total Price', 'Product Discount (%)']
                 for col in numeric_cols:
-                    if col in filtered_data.columns:
-                        filtered_data[col] = pd.to_numeric(filtered_data[col], errors='coerce')
+                    if col in sales_data.columns:
+                        sales_data[col] = pd.to_numeric(sales_data[col], errors='coerce')
+                
+                # Filter for current employee
+                employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
+                filtered_data = sales_data[sales_data['Employee Code'] == employee_code]
                 
                 return filtered_data
             except Exception as e:
@@ -946,7 +956,8 @@ def sales_page():
             'Invoice Date': 'first',
             'Outlet Name': 'first',
             'Grand Total': 'sum',
-            'Payment Status': 'first'
+            'Payment Status': 'first',
+            'Delivery Status': 'first'
         }).sort_values('Invoice Date', ascending=False).reset_index()
         
         st.write(f"📄 Showing {len(invoice_summary)} invoices")
@@ -966,30 +977,76 @@ def sales_page():
             key="invoice_selection"
         )
         
+        # Delivery Status Section
+        st.subheader("Delivery Status Management")
+        
+        # Get all products for the selected invoice
         invoice_details = filtered_data[filtered_data['Invoice Number'] == selected_invoice]
+        
+        if not invoice_details.empty:
+            # Create a form for delivery status updates
+            with st.form(key='delivery_status_form'):
+                # Get current status for the invoice
+                current_status = invoice_details.iloc[0].get('Delivery Status', 'Pending')
+                
+                # Display status selection
+                new_status = st.selectbox(
+                    "Update Delivery Status",
+                    ["Pending", "Order Done", "Delivery Done"],
+                    index=["Pending", "Order Done", "Delivery Done"].index(current_status) 
+                    if current_status in ["Pending", "Order Done", "Delivery Done"] else 0,
+                    key=f"status_{selected_invoice}"
+                )
+                
+                # Submit button for the form
+                submitted = st.form_submit_button("Update Status")
+                
+                if submitted:
+                    with st.spinner("Updating delivery status..."):
+                        try:
+                            # Update all products in this invoice with the new status
+                            sales_data = conn.read(worksheet="Sales", ttl=5)
+                            sales_data = sales_data.dropna(how='all')
+                            
+                            # Update the status for all rows with this invoice number
+                            mask = sales_data['Invoice Number'] == selected_invoice
+                            sales_data.loc[mask, 'Delivery Status'] = new_status
+                            
+                            # Write back the updated data
+                            conn.update(worksheet="Sales", data=sales_data)
+                            
+                            st.success(f"Delivery status updated to '{new_status}' for invoice {selected_invoice}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error updating delivery status: {e}")
+        
+        # Display invoice details
         if not invoice_details.empty:
             invoice_data = invoice_details.iloc[0]
+            original_invoice_date = invoice_data['Invoice Date'].strftime('%d-%m-%Y')  # Store original date
             
             st.subheader(f"Invoice {selected_invoice}")
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Date", invoice_data['Invoice Date'].strftime('%d-%m-%Y'))
+                st.metric("Date", original_invoice_date)  # Use original date
                 st.metric("Outlet", str(invoice_data['Outlet Name']))
                 st.metric("Contact", str(invoice_data['Outlet Contact']))
             with col2:
                 total_amount = invoice_summary[invoice_summary['Invoice Number'] == selected_invoice]['Grand Total'].values[0]
                 st.metric("Total Amount", f"₹{total_amount:.2f}")
                 st.metric("Payment Status", str(invoice_data['Payment Status']).capitalize())
+                st.metric("Delivery Status", str(invoice_data.get('Delivery Status', 'Pending')).capitalize())
             
             st.subheader("Products")
-            product_display = invoice_details[['Product Name', 'Quantity', 'Unit Price', 'Product Discount (%)', 'Total Price']].copy()
+            product_display = invoice_details[['Product Name', 'Quantity', 'Unit Price', 'Product Discount (%)', 'Total Price', 'Grand Total']].copy()
             product_display['Product Name'] = product_display['Product Name'].astype(str)
             
             st.dataframe(
                 product_display,
                 column_config={
                     "Unit Price": st.column_config.NumberColumn(format="₹%.2f"),
-                    "Total Price": st.column_config.NumberColumn(format="₹%.2f")
+                    "Total Price": st.column_config.NumberColumn(format="₹%.2f"),
+                    "Grand Total": st.column_config.NumberColumn(format="₹%.2f")
                 },
                 use_container_width=True,
                 hide_index=True
@@ -998,6 +1055,7 @@ def sales_page():
             if st.button("🔄 Regenerate Invoice", key=f"regenerate_btn_{selected_invoice}"):
                 with st.spinner("Regenerating invoice..."):
                     try:
+
                         pdf, pdf_path = generate_invoice(
                             str(invoice_data['Outlet Name']),
                             str(invoice_data.get('GST Number', '')),
@@ -1022,7 +1080,8 @@ def sales_page():
                             str(invoice_data.get('Distributor Contact Number', '')),
                             str(invoice_data.get('Distributor Email', '')),
                             str(invoice_data.get('Distributor Territory', '')),
-                            str(invoice_data.get('Remarks', ''))
+                            str(invoice_data.get('Remarks', '')),
+                            original_invoice_date 
                         )
                         
                         with open(pdf_path, "rb") as f:
@@ -1034,7 +1093,7 @@ def sales_page():
                                 key=f"download_regenerated_{selected_invoice}"
                             )
                         
-                        st.success("Invoice regenerated successfully!")
+                        st.success("Invoice regenerated successfully with original date!")
                         st.balloons()
                     except Exception as e:
                         st.error(f"Error regenerating invoice: {e}")
@@ -1088,12 +1147,12 @@ def visit_page():
 
         if st.button("Record Visit", key="record_visit_button"):
             if outlet_name:
-                today = datetime.now().date()
+                today = get_ist_time().date()
                 
                 if entry_time is None:
-                    entry_time = datetime.now().time()
+                    entry_time = get_ist_time().time()
                 if exit_time is None:
-                    exit_time = datetime.now().time()
+                    exit_time = get_ist_time().time()
                     
                 entry_datetime = datetime.combine(today, entry_time)
                 exit_datetime = datetime.combine(today, exit_time)
