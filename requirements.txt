@@ -8,3 +8,11 @@ fpdf
 pandas
 PyPDF2
 pdfplumber
+plotly
+numpy
+reportlab
+geocoder
+plotly
+requests
+streamlit-js-eval
+pytz
