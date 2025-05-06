@@ -854,8 +854,8 @@ def sales_page():
             gst_number = st.text_input("GST Number", key="manual_gst_number")
             contact_number = st.text_input("Contact Number", key="manual_contact_number")
             address = st.text_area("Address", key="manual_address")
-            state = st.text_input("State", "Uttar Pradesh", key="manual_state")
-            city = st.text_input("City", "Noida", key="manual_city")
+            state = st.text_input("State", "", key="manual_state")
+            city = st.text_input("City", "", key="manual_city")
 
         if st.button("Generate Invoice", key="generate_invoice_button"):
             if selected_products and customer_name:
@@ -1131,8 +1131,8 @@ def visit_page():
             outlet_name = st.text_input("Outlet Name", key="visit_outlet_name")
             outlet_contact = st.text_input("Outlet Contact", key="visit_outlet_contact")
             outlet_address = st.text_area("Outlet Address", key="visit_outlet_address")
-            outlet_state = st.text_input("Outlet State", "Uttar Pradesh", key="visit_outlet_state")
-            outlet_city = st.text_input("Outlet City", "Noida", key="visit_outlet_city")
+            outlet_state = st.text_input("Outlet State", "", key="visit_outlet_state")
+            outlet_city = st.text_input("Outlet City", "", key="visit_outlet_city")
 
         st.subheader("Visit Details")
         visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Demo", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"], key="visit_purpose")
