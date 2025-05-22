@@ -292,6 +292,7 @@ Products = pd.read_csv('Invoice - Products.csv')
 Outlet = pd.read_csv('Invoice - Outlet.csv')
 Person = pd.read_csv('Invoice - Person.csv')
 Distributors = pd.read_csv('Invoice - Distributors.csv')
+citystate = pd.read_csv('India City - State.csv')
 
 # Company Details with ALLGEN TRADING logo
 company_name = "BIOLUME SKIN SCIENCE PRIVATE LIMITED"
@@ -386,13 +387,21 @@ def demo_page():
             st.text_input("Address", value=outlet_address, disabled=True, key="demo_outlet_address_display")
             st.text_input("State", value=outlet_state, disabled=True, key="demo_outlet_state_display")
             st.text_input("City", value=outlet_city, disabled=True, key="demo_outlet_city_display")
+
         else:
             outlet_name    = st.text_input("Outlet Name", key="demo_outlet_name")
             outlet_contact = st.text_input("Outlet Contact", key="demo_outlet_contact")
             outlet_address = st.text_area("Outlet Address", key="demo_outlet_address")
-            outlet_state   = st.text_input("Outlet State", "", key="demo_outlet_state")
-            outlet_city    = st.text_input("Outlet City", "", key="demo_outlet_city")
+            
+            # State and City Dropdowns
+            unique_states = sorted(citystate['State'].unique())
+            selected_state = st.selectbox("State", unique_states, key="demo_outlet_state")
+            
+            # Filter cities based on selected state
+            cities_in_state = sorted(citystate[citystate['State'] == selected_state]['City'].unique())
+            selected_city = st.selectbox("City", cities_in_state, key="demo_outlet_city")
 
+        
         st.subheader("Demo Details")
         demo_date     = st.date_input("Demo Date", key="demo_date")
         outlet_review = st.selectbox("Outlet Review", ["Excellent", "Good", "Average", "Poor"], key="outlet_review")
@@ -1737,14 +1746,20 @@ def sales_page():
             gst_number    = st.text_input("GST Number", key="manual_gst_number")
             contact_number = st.text_input("Contact Number", key="manual_contact_number")
             address        = st.text_area("Address", key="manual_address")
-            state          = st.text_input("State", "", key="manual_state")
-            city           = st.text_input("City", "", key="manual_city")
+            
+            # State and City Dropdowns
+            unique_states = sorted(citystate['State'].unique())
+            selected_state = st.selectbox("State", unique_states, key="manual_state")
+            
+            # Filter cities based on selected state
+            cities_in_state = sorted(citystate[citystate['State'] == selected_state]['City'].unique())
+            selected_city = st.selectbox("City", cities_in_state, key="manual_city")
     
         if st.button("Generate Invoice", key="generate_invoice_button"):
             if selected_products and customer_name:
                 invoice_number = generate_invoice_number()
                 pdf, pdf_path = generate_invoice(
-                    customer_name, gst_number, contact_number, address, state, city,
+                    customer_name, gst_number, contact_number, address, selected_state, selected_city,
                     selected_products, quantities, product_discounts, discount_category,
                     selected_employee, payment_status, amount_paid, None, None,
                     invoice_number, transaction_type,
@@ -2017,8 +2032,6 @@ def sales_page():
 def visit_page():
     st.title("Visit Management")
     selected_employee = st.session_state.employee_name
-
-    # Empty remarks since we removed the location input
     visit_remarks = ""
 
     tab1, tab2 = st.tabs(["New Visit", "Visit History"])
@@ -2038,7 +2051,6 @@ def visit_page():
             outlet_state = outlet_details['State']
             outlet_city = outlet_details['City']
             
-            # Show outlet details like distributor details
             st.text_input("Outlet Contact", value=outlet_contact, disabled=True, key="outlet_contact_display")
             st.text_input("Outlet Address", value=outlet_address, disabled=True, key="outlet_address_display")
             st.text_input("Outlet State", value=outlet_state, disabled=True, key="outlet_state_display")
@@ -2047,8 +2059,14 @@ def visit_page():
             outlet_name = st.text_input("Outlet Name", key="visit_outlet_name")
             outlet_contact = st.text_input("Outlet Contact", key="visit_outlet_contact")
             outlet_address = st.text_area("Outlet Address", key="visit_outlet_address")
-            outlet_state = st.text_input("Outlet State", "", key="visit_outlet_state")
-            outlet_city = st.text_input("Outlet City", "", key="visit_outlet_city")
+            
+            # State and City Dropdowns
+            unique_states = sorted(citystate['State'].unique())
+            selected_state = st.selectbox("State", unique_states, key="visit_outlet_state")
+            
+            # Filter cities based on selected state
+            cities_in_state = sorted(citystate[citystate['State'] == selected_state]['City'].unique())
+            selected_city = st.selectbox("City", cities_in_state, key="visit_outlet_city")
 
         st.subheader("Visit Details")
         visit_purpose = st.selectbox("Visit Purpose", ["Sales", "Demo", "Product Demonstration", "Relationship Building", "Issue Resolution", "Other"], key="visit_purpose")
@@ -2073,12 +2091,11 @@ def visit_page():
                 entry_datetime = datetime.combine(today, entry_time)
                 exit_datetime = datetime.combine(today, exit_time)
                 
-                # No visit selfie upload
                 visit_selfie_path = None
                 
                 visit_id = record_visit(
                     selected_employee, outlet_name, outlet_contact, outlet_address,
-                    outlet_state, outlet_city, visit_purpose, visit_notes, 
+                    selected_state, selected_city, visit_purpose, visit_notes, 
                     visit_selfie_path, entry_datetime, exit_datetime,
                     visit_remarks
                 )
