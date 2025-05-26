@@ -9,6 +9,77 @@ from PIL import Image
 from datetime import datetime, time, timedelta
 import pytz
 
+import streamlit as st
+import streamlit.components.v1 as components
+from streamlit_js_eval import streamlit_js_eval
+from datetime import datetime
+import pytz
+import time
+import pandas as pd
+
+
+
+def log_location_history(conn, employee_name, lat, lng):
+    employee_code = Person[Person['Employee Name'] == employee_name]['Employee Code'].values[0]
+    designation = Person[Person['Employee Name'] == employee_name]['Designation'].values[0]
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.now(ist)
+    date_str = now.strftime("%d-%m-%Y")
+    time_str = now.strftime("%H:%M")
+    gmaps_link = f"https://maps.google.com/?q={lat},{lng}"
+    entry = {
+        "Employee Name": employee_name,
+        "Employee Code": employee_code,
+        "Designation": designation,
+        "Date": date_str,
+        "Time": time_str,
+        "Latitude": lat,
+        "Longitude": lng,
+        "Google Maps Link": gmaps_link
+    }
+    try:
+        existing = conn.read(worksheet="LocationHistory", usecols=list(range(len(LOCATION_HISTORY_COLUMNS))), ttl=5)
+        existing = existing.dropna(how="all")
+        new_df = pd.DataFrame([entry], columns=LOCATION_HISTORY_COLUMNS)
+        updated = pd.concat([existing, new_df], ignore_index=True)
+        conn.update(worksheet="LocationHistory", data=updated)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def hourly_location_auto_log(conn, selected_employee):
+    if not selected_employee:
+        return
+    result = streamlit_js_eval(
+        js_expressions="""
+            new Promise((resolve) => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        pos => resolve({latitude: pos.coords.latitude, longitude: pos.coords.longitude, ts: Date.now()}),
+                        err => resolve({latitude: null, longitude: null, ts: Date.now()})
+                    );
+                } else {
+                    resolve({latitude: null, longitude: null, ts: Date.now()});
+                }
+            });
+        """,
+        key=f"geo_hourly_{int(time.time() // 3600)}"
+    ) or {}
+
+    lat = result.get("latitude")
+    lng = result.get("longitude")
+
+    if lat and lng:
+        current_hour = datetime.now(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H")
+        logged_key = f"hourly_logged_{selected_employee}_{current_hour}"
+        if not st.session_state.get(logged_key, False):
+            success, error = log_location_history(conn, selected_employee, lat, lng)
+            if success:
+                st.session_state[logged_key] = True
+
+st.set_page_config(page_title="Location Logger", layout="centered")
+
 def get_ist_time():
     """Get current time in Indian Standard Time (IST)"""
     utc_now = datetime.now(pytz.utc)
@@ -166,6 +237,17 @@ SALES_SHEET_COLUMNS = [
     "Invoice PDF Path",
     "Remarks",
     "Delivery Status"  # Added new column for delivery status
+]
+
+LOCATION_HISTORY_COLUMNS = [
+    "Employee Name",
+    "Employee Code",
+    "Designation",
+    "Date",
+    "Time",
+    "Latitude",
+    "Longitude",
+    "Google Maps Link"
 ]
 
 VISIT_SHEET_COLUMNS = [
@@ -360,6 +442,7 @@ def save_uploaded_file(uploaded_file, folder):
 
 
 def demo_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Demo Management")
     selected_employee = st.session_state.employee_name
 
@@ -555,6 +638,7 @@ def demo_page():
 
 
 def support_ticket_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Support Ticket Management")
     selected_employee = st.session_state.employee_name
     employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
@@ -762,6 +846,7 @@ def support_ticket_page():
             st.error(f"Error retrieving support tickets: {str(e)}")
 
 def travel_hotel_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Travel & Hotel Booking")
     selected_employee = st.session_state.employee_name
     employee_code = Person[Person['Employee Name'] == selected_employee]['Employee Code'].values[0]
@@ -1433,6 +1518,7 @@ def authenticate_employee(employee_name, passkey):
         return False
 
 def resources_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Company Resources")
     st.markdown("Download important company documents and product catalogs.")
     
@@ -1504,12 +1590,12 @@ def main():
     if not st.session_state.authenticated:
         # Display the centered logo and heading
         display_login_header()
-        
+
         employee_names = Person['Employee Name'].tolist()
-        
+
         # Create centered form
         form_col1, form_col2, form_col3 = st.columns([1, 2, 1])
-        
+
         with form_col2:
             with st.container():
                 employee_name = st.selectbox(
@@ -1522,15 +1608,40 @@ def main():
                     type="password", 
                     key="passkey_input"
                 )
-                
+
                 login_button = st.button(
                     "Log in", 
                     key="login_button",
                     use_container_width=True
                 )
-                
+
                 if login_button:
                     if authenticate_employee(employee_name, passkey):
+                        # Immediately fetch and log location after login
+                        result = streamlit_js_eval(
+                            js_expressions="""
+                                new Promise((resolve) => {
+                                    if (navigator.geolocation) {
+                                        navigator.geolocation.getCurrentPosition(
+                                            pos => resolve({latitude: pos.coords.latitude, longitude: pos.coords.longitude}),
+                                            err => resolve({latitude: null, longitude: null})
+                                        );
+                                    } else {
+                                        resolve({latitude: null, longitude: null});
+                                    }
+                                });
+                            """,
+                            key=f"geo_login_{employee_name}_{int(time.time())}"
+                        ) or {}
+
+                        lat = result.get("latitude")
+                        lng = result.get("longitude")
+                        if lat and lng:
+                            log_location_history(conn, employee_name, lat, lng)
+                            gmaps_link = f"https://maps.google.com/?q={lat},{lng}"
+                            st.success(f"Login location logged: [View on Google Maps]({gmaps_link})")
+                            # Brief pause for user to see the message
+                            time.sleep(1.5)
                         st.session_state.authenticated = True
                         st.session_state.employee_name = employee_name
                         st.rerun()
@@ -1539,46 +1650,22 @@ def main():
     else:
         # Show option boxes after login
         st.title("Select Mode")
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-        
+        col1, col2 = st.columns(2)
+
         with col1:
-            if st.button("Sales", use_container_width=True, key="sales_mode"):
-                st.session_state.selected_mode = "Sales"
-                st.rerun()
-        
-        with col2:
-            if st.button("Visit", use_container_width=True, key="visit_mode"):
-                st.session_state.selected_mode = "Visit"
-                st.rerun()
-        
-        with col3:
             if st.button("Attendance", use_container_width=True, key="attendance_mode"):
                 st.session_state.selected_mode = "Attendance"
                 st.rerun()
-                
-        with col4:
+
+        with col2:
             if st.button("Resources", use_container_width=True, key="resources_mode"):
                 st.session_state.selected_mode = "Resources"
                 st.rerun()
-                
-        with col5:
-            if st.button("Support Ticket", use_container_width=True, key="ticket_mode"):
-                st.session_state.selected_mode = "Support Ticket"
-                st.rerun()
-                
-        with col6:
-            if st.button("Travel/Hotel", use_container_width=True, key="travel_mode"):
-                st.session_state.selected_mode = "Travel/Hotel"
-                st.rerun()
-                
-        with col7:
-            if st.button("Demo", use_container_width=True, key="demo_mode"):
-                st.session_state.selected_mode = "Demo"
-                st.rerun()
-        
+
+
         if st.session_state.selected_mode:
             add_back_button()
-            
+
             if st.session_state.selected_mode == "Sales":
                 sales_page()
             elif st.session_state.selected_mode == "Visit":
@@ -1594,7 +1681,9 @@ def main():
             elif st.session_state.selected_mode == "Demo":
                 demo_page()
 
+
 def sales_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Sales Management")
     selected_employee = st.session_state.employee_name
     sales_remarks = ""
@@ -2015,6 +2104,7 @@ def sales_page():
                         st.error(f"Error regenerating invoice: {e}")
 
 def visit_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Visit Management")
     selected_employee = st.session_state.employee_name
 
@@ -2135,51 +2225,69 @@ def visit_page():
             except Exception as e:
                 st.error(f"Error retrieving visit data: {e}")
 
+from streamlit_js_eval import streamlit_js_eval
+
 def attendance_page():
+    hourly_location_auto_log(conn, st.session_state.employee_name)
     st.title("Attendance Management")
     selected_employee = st.session_state.employee_name
-    
+
     if check_existing_attendance(selected_employee):
         st.warning("You have already marked your attendance for today.")
         return
-    
+
     st.subheader("Attendance Status")
     status = st.radio("Select Status", ["Present", "Half Day", "Leave"], index=0, key="attendance_status")
-    
-    if status in ["Present", "Half Day"]:
-        st.subheader("Location Verification")
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            live_location = st.text_input("Enter your current location (Google Maps link or address)", 
-                                        help="Please share your live location for verification",
-                                        key="location_input")
 
-        
-        if st.button("Mark Attendance", key="mark_attendance_button"):
-            if not live_location:
-                st.error("Please provide your location")
-            else:
-                with st.spinner("Recording attendance..."):
-                    attendance_id, error = record_attendance(
-                        selected_employee,
-                        status,  # Will be "Present" or "Half Day"
-                        location_link=live_location
-                    )
-                    
-                    if error:
-                        st.error(f"Failed to record attendance: {error}")
-                    else:
-                        st.success(f"Attendance recorded successfully! ID: {attendance_id}")
-                        st.balloons()
-    
+    if status in ["Present", "Half Day"]:
+        st.subheader("Location Verification (Auto)")
+
+        result = streamlit_js_eval(
+            js_expressions="""
+                new Promise((resolve) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({latitude: pos.coords.latitude, longitude: pos.coords.longitude}),
+                            err => resolve({latitude: null, longitude: null})
+                        );
+                    } else {
+                        resolve({latitude: null, longitude: null});
+                    }
+                });
+            """,
+            key="geo"
+        ) or {}
+
+        lat = result.get("latitude")
+        lng = result.get("longitude")
+
+        if lat and lng:
+            gmaps_link = f"https://maps.google.com/?q={lat},{lng}"
+            st.success(f"Fetched Location: [View on Google Maps]({gmaps_link})")
+        else:
+            gmaps_link = ""
+            st.info("Waiting for location permission...")
+
+        if lat and lng and st.button("Mark Attendance", key="mark_attendance_button"):
+            with st.spinner("Recording attendance..."):
+                attendance_id, error = record_attendance(
+                    selected_employee,
+                    status,
+                    location_link=gmaps_link
+                )
+                if error:
+                    st.error(f"Failed to record attendance: {error}")
+                else:
+                    st.success(f"Attendance recorded successfully! ID: {attendance_id}")
+                    st.balloons()
+
     else:
         st.subheader("Leave Details")
         leave_types = ["Sick Leave", "Personal Leave", "Vacation", "Other"]
         leave_type = st.selectbox("Leave Type", leave_types, key="leave_type")
-        leave_reason = st.text_area("Reason for Leave", 
-                                 placeholder="Please provide details about your leave",
-                                 key="leave_reason")
-        
+        leave_reason = st.text_area("Reason for Leave",
+                                   placeholder="Please provide details about your leave",
+                                   key="leave_reason")
         if st.button("Submit Leave Request", key="submit_leave_button"):
             if not leave_reason:
                 st.error("Please provide a reason for your leave")
@@ -2191,11 +2299,11 @@ def attendance_page():
                         "Leave",
                         leave_reason=full_reason
                     )
-                    
                     if error:
                         st.error(f"Failed to submit leave request: {error}")
                     else:
                         st.success(f"Leave request submitted successfully! ID: {attendance_id}")
+
 
 if __name__ == "__main__":
     main()
