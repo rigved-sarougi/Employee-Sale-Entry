@@ -16,3 +16,8 @@ plotly
 requests
 streamlit-js-eval
 pytz
+streamlit-bokeh-events
+bokeh
+googlemaps
+geopy
+streamlit_autorefresh
