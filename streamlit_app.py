@@ -1471,7 +1471,7 @@ def record_attendance(employee_name, status, location_link="", leave_reason=""):
             "Date": current_date,
             "Status": status,
             "Location Link": location_link,
-            "Leave Reason": leave_reason,
+            "Leave Reason": leave_reason,  # This now includes station type
             "Check-in Time": check_in_time,
             "Check-in Date Time": current_datetime
         }
@@ -2263,6 +2263,13 @@ def attendance_page():
     st.subheader("Attendance Status")
     status = st.radio("Select Status", ["Present", "Half Day", "Leave"], index=0, key="attendance_status")
 
+    # Add the new station dropdown
+    station_type = st.selectbox(
+        "Station Type",
+        ["HQ Location", "Out Station"],
+        key="station_type"
+    )
+
     if status in ["Present", "Half Day"]:
         st.subheader("Location Verification (Auto)")
 
@@ -2294,10 +2301,13 @@ def attendance_page():
 
         if lat and lng and st.button("Mark Attendance", key="mark_attendance_button"):
             with st.spinner("Recording attendance..."):
+                # Include station type in the remarks
+                remarks = f"{station_type}"
                 attendance_id, error = record_attendance(
                     selected_employee,
                     status,
-                    location_link=gmaps_link
+                    location_link=gmaps_link,
+                    leave_reason=remarks  # Using leave_reason field to store station type
                 )
                 if error:
                     st.error(f"Failed to record attendance: {error}")
@@ -2316,7 +2326,8 @@ def attendance_page():
             if not leave_reason:
                 st.error("Please provide a reason for your leave")
             else:
-                full_reason = f"{leave_type}: {leave_reason}"
+                # Include station type in the leave reason
+                full_reason = f"{station_type} - {leave_type}: {leave_reason}"
                 with st.spinner("Submitting leave request..."):
                     attendance_id, error = record_attendance(
                         selected_employee,
